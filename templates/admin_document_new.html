@@ -1,0 +1,133 @@
+{% extends "base_admin.html" %}
+{% block title %}New Document{% endblock %}
+{% block page_title %}New Document{% endblock %}
+
+{% block content %}
+
+<div style="max-width:680px;">
+
+  <div style="display:flex;gap:.5rem;margin-bottom:1rem;">
+    <span style="padding:.45rem 1.1rem;border-radius:6px;font-size:.85rem;font-weight:600;
+                 background:var(--primary);border:1.5px solid var(--primary);color:#fff;
+                 cursor:default;">Single</span>
+    <a href="{{ url_for('admin_document_bulk') }}"
+       style="padding:.45rem 1.1rem;border-radius:6px;font-size:.85rem;font-weight:600;
+              background:#fff;border:1.5px solid var(--gray-200);color:var(--gray-600);
+              text-decoration:none;">Bulk Upload</a>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Create Document</h2>
+    </div>
+    <div class="panel-body" style="padding:1.6rem;">
+      <form method="post" action="{{ url_for('admin_document_new') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div style="display:flex;flex-direction:column;gap:1.2rem;">
+
+          <div>
+            <label for="name" style="display:block;font-size:.83rem;font-weight:600;color:var(--gray-700);margin-bottom:.35rem;">
+              Document Name <span style="color:var(--error);">*</span>
+            </label>
+            <input type="text" id="name" name="name" required
+                   value="{{ request.form.get('name', '') }}"
+                   placeholder="e.g. Q4 Investor Report"
+                   style="width:100%;padding:.6rem .85rem;border:1.5px solid var(--gray-200);
+                          border-radius:8px;font-size:.9rem;color:var(--gray-900);outline:none;
+                          transition:border-color .15s;"
+                   onfocus="this.style.borderColor='var(--primary)'"
+                   onblur="this.style.borderColor='var(--gray-200)'">
+          </div>
+
+          <div>
+            <label for="description" style="display:block;font-size:.83rem;font-weight:600;color:var(--gray-700);margin-bottom:.35rem;">
+              Description
+            </label>
+            <textarea id="description" name="description" rows="3"
+                      placeholder="Optional short description shown in the admin panel"
+                      style="width:100%;padding:.6rem .85rem;border:1.5px solid var(--gray-200);
+                             border-radius:8px;font-size:.9rem;color:var(--gray-900);outline:none;
+                             resize:vertical;transition:border-color .15s;"
+                      onfocus="this.style.borderColor='var(--primary)'"
+                      onblur="this.style.borderColor='var(--gray-200)'">{{ request.form.get('description', '') }}</textarea>
+          </div>
+
+          <div>
+            <label for="pdf" style="display:block;font-size:.83rem;font-weight:600;color:var(--gray-700);margin-bottom:.35rem;">
+              PDF File <span style="color:var(--error);">*</span>
+            </label>
+            <input type="file" id="pdf" name="pdf" accept=".pdf,application/pdf" required
+                   style="display:block;width:100%;padding:.65rem .85rem;
+                          border:1.5px dashed var(--gray-200);border-radius:8px;
+                          font-size:.88rem;color:var(--gray-700);background:var(--gray-50);cursor:pointer;">
+            <p class="text-muted" style="margin-top:.35rem;">Encrypted in memory — plaintext never written to disk.</p>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div>
+              <label for="expires_at" style="display:block;font-size:.83rem;font-weight:600;color:var(--gray-700);margin-bottom:.35rem;">
+                Expires At
+              </label>
+              <input type="datetime-local" id="expires_at" name="expires_at"
+                     value="{{ request.form.get('expires_at', '') }}"
+                     style="width:100%;padding:.6rem .85rem;border:1.5px solid var(--gray-200);
+                            border-radius:8px;font-size:.88rem;color:var(--gray-900);outline:none;
+                            transition:border-color .15s;"
+                     onfocus="this.style.borderColor='var(--primary)'"
+                     onblur="this.style.borderColor='var(--gray-200)'">
+              <p class="text-muted" style="margin-top:.35rem;">Leave blank for no expiry.</p>
+            </div>
+
+            <div>
+              <label for="max_viewers" style="display:block;font-size:.83rem;font-weight:600;color:var(--gray-700);margin-bottom:.35rem;">
+                Max Viewers
+              </label>
+              <input type="number" id="max_viewers" name="max_viewers" min="1"
+                     value="{{ request.form.get('max_viewers', '') }}"
+                     placeholder="Unlimited"
+                     style="width:100%;padding:.6rem .85rem;border:1.5px solid var(--gray-200);
+                            border-radius:8px;font-size:.88rem;color:var(--gray-900);outline:none;
+                            transition:border-color .15s;"
+                     onfocus="this.style.borderColor='var(--primary)'"
+                     onblur="this.style.borderColor='var(--gray-200)'">
+              <p class="text-muted" style="margin-top:.35rem;">Leave blank for unlimited.</p>
+            </div>
+          </div>
+
+          <div>
+            <label for="approved_domains" style="display:block;font-size:.83rem;font-weight:600;color:var(--gray-700);margin-bottom:.35rem;">
+              Approved Domains
+            </label>
+            <input type="text" id="approved_domains" name="approved_domains"
+                   value="{{ request.form.get('approved_domains', '') }}"
+                   placeholder="company.com, partner.org"
+                   style="width:100%;padding:.6rem .85rem;border:1.5px solid var(--gray-200);
+                          border-radius:8px;font-size:.88rem;color:var(--gray-900);outline:none;
+                          transition:border-color .15s;"
+                   onfocus="this.style.borderColor='var(--primary)'"
+                   onblur="this.style.borderColor='var(--gray-200)'">
+            <p class="text-muted" style="margin-top:.35rem;">Comma-separated. Leave blank to allow any domain.</p>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:.6rem;">
+            <input type="checkbox" id="require_email_verify" name="require_email_verify"
+                   value="1" {% if request.form.get('require_email_verify') %}checked{% endif %}
+                   style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;">
+            <label for="require_email_verify" style="font-size:.88rem;font-weight:500;color:var(--gray-700);cursor:pointer;">
+              Require email verification before request is shown to admin
+            </label>
+          </div>
+
+          <div style="display:flex;gap:.8rem;padding-top:.4rem;">
+            <button type="submit" class="btn btn-primary">Create Document</button>
+            <a href="{{ url_for('admin_documents') }}" class="btn btn-outline">Cancel</a>
+          </div>
+
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

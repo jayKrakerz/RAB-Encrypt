@@ -1,0 +1,38 @@
+{% extends "base_user.html" %}
+{% block title %}
+  {% if reason == "expired" %}Session Expired
+  {% elif reason == "revoked" %}Access Revoked
+  {% else %}Access Required
+  {% endif %} — {{ doc_name }}
+{% endblock %}
+
+{% block content %}
+<div style="text-align:center;margin-bottom:1.6rem;">
+  <div style="font-size:3rem;margin-bottom:.6rem;">
+    {% if reason == "expired" %}⏱{% elif reason == "revoked" %}🚫{% else %}🔒{% endif %}
+  </div>
+
+  <h1>
+    {% if reason == "expired" %}Session Expired
+    {% elif reason == "revoked" %}Access Revoked
+    {% else %}Access Required
+    {% endif %}
+  </h1>
+</div>
+
+<p class="subtitle" style="text-align:center;">
+  {% if reason == "expired" %}
+    Your 60-minute access window has ended. To view <strong>{{ doc_name }}</strong> again,
+    you need to request a new PIN.
+  {% elif reason == "revoked" %}
+    Your access has been revoked by the administrator.
+    Please contact them if you believe this is an error.
+  {% else %}
+    You need a valid PIN to access <strong>{{ doc_name }}</strong>.
+  {% endif %}
+</p>
+
+{% if reason != "revoked" %}
+<a class="btn" href="{{ url_for('index') }}">Return to Document Portal</a>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,153 @@
+{% extends "base_admin.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="label">Total Documents</div>
+    <div class="value" style="color:#6D28D9;">{{ stats.total_documents }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">All-time Requests</div>
+    <div class="value" style="color:#0891B2;">{{ stats.total_requests }}</div>
+  </div>
+  <div class="stat-card pending">
+    <div class="label">Pending Today</div>
+    <div class="value">{{ stats.pending_today }}</div>
+  </div>
+  <div class="stat-card active">
+    <div class="label">Active Sessions</div>
+    <div class="value">{{ stats.active_sessions }}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-header">
+    <h2>Documents</h2>
+    <span class="text-muted" style="margin-left:auto;">
+      <a href="{{ url_for('admin_documents') }}" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .8rem;">View all</a>
+    </span>
+  </div>
+  <div class="panel-body">
+    {% if documents %}
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Status</th>
+          <th>Pending</th>
+          <th>Active</th>
+          <th>Total Viewers</th>
+          <th>Expires</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doc in documents %}
+        <tr>
+          <td style="font-weight:600;color:var(--gray-900);">{{ doc.name }}</td>
+          <td>
+            {% if doc.status == 'active' %}
+              <span class="badge badge-active">Active</span>
+            {% else %}
+              <span class="badge badge-archived">Archived</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if doc.pending_count %}
+              <span class="badge badge-pending">{{ doc.pending_count }}</span>
+            {% else %}
+              <span class="text-muted">0</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if doc.active_count %}
+              <span class="badge badge-active">{{ doc.active_count }}</span>
+            {% else %}
+              <span class="text-muted">0</span>
+            {% endif %}
+          </td>
+          <td class="ts">{{ doc.total_viewers }}{% if doc.max_viewers %} / {{ doc.max_viewers }}{% endif %}</td>
+          <td class="ts">{{ doc.expires_at[:16] if doc.expires_at else '—' }}</td>
+          <td>
+            <a href="{{ url_for('admin_document', document_id=doc.id) }}" class="btn btn-outline" style="font-size:.78rem;padding:.3rem .7rem;">Manage</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      <div class="empty-icon">📁</div>
+      <p>No documents yet. <a href="{{ url_for('admin_document_new') }}" style="color:var(--primary);">Create one.</a></p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-header">
+    <h2>Recent Audit Events</h2>
+    <span style="margin-left:auto;">
+      <a href="{{ url_for('admin_audit') }}" class="btn btn-outline" style="font-size:.8rem;padding:.35rem .8rem;">View all</a>
+    </span>
+  </div>
+  <div class="panel-body">
+    {% set ev_meta = {
+      "access_requested": {"label": "Access Requested", "icon": "📥", "cls": "ev-requested"},
+      "pin_redeemed":     {"label": "PIN Redeemed",     "icon": "🔓", "cls": "ev-redeemed"},
+      "document_viewed":  {"label": "Document Viewed",  "icon": "👁",  "cls": "ev-viewed"},
+      "request_approved": {"label": "Approved",         "icon": "✓",  "cls": "ev-approved"},
+      "request_denied":   {"label": "Denied",           "icon": "✕",  "cls": "ev-denied"},
+      "session_revoked":  {"label": "Session Revoked",  "icon": "🚫", "cls": "ev-revoked"},
+    } %}
+    <style>
+      .ev-requested { background:#EFF6FF; color:#1E40AF; border-color:#BFDBFE; }
+      .ev-redeemed  { background:#D1FAE5; color:#065F46; border-color:#6EE7B7; }
+      .ev-viewed    { background:#EDE9FE; color:#4C1D95; border-color:#C4B5FD; }
+      .ev-approved  { background:#D1FAE5; color:#065F46; border-color:#6EE7B7; }
+      .ev-denied    { background:#FEE2E2; color:#991B1B; border-color:#FECACA; }
+      .ev-revoked   { background:#FEF3C7; color:#92400E; border-color:#FDE68A; }
+      .ev-badge {
+        display: inline-flex; align-items: center; gap: .3rem;
+        padding: .2rem .65rem; border-radius: 99px;
+        font-size: .73rem; font-weight: 700;
+        border: 1px solid transparent; white-space: nowrap;
+      }
+    </style>
+    {% if recent_events %}
+    <table>
+      <thead>
+        <tr>
+          <th>When (UTC)</th>
+          <th>Event</th>
+          <th>Email</th>
+          <th>Document</th>
+          <th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in recent_events %}
+        {% set m = ev_meta.get(row.event, {"label": row.event, "icon": "•", "cls": ""}) %}
+        <tr>
+          <td class="ts">{{ row.created_at[:19] }}</td>
+          <td><span class="ev-badge {{ m.cls }}">{{ m.icon }} {{ m.label }}</span></td>
+          <td class="email-cell">{{ row.email or '—' }}</td>
+          <td class="ts">{{ row.document_id or '—' }}</td>
+          <td class="ts" style="font-family:monospace;">{{ row.ip_address or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      <div class="empty-icon">📋</div>
+      <p>No audit events yet.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

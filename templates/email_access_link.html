@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Access Granted</title>
+</head>
+<body style="margin: 0; padding: 0; background: #f3f4f6; font-family: Arial, Helvetica, sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td align="center" style="padding: 40px 16px;">
+        <table role="presentation" width="520" cellspacing="0" cellpadding="0" border="0"
+               style="max-width: 520px; width: 100%; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background: #DC2626; padding: 28px 32px; text-align: center;">
+              <h1 style="margin: 0; font-size: 1.4rem; font-weight: 700; color: #ffffff; letter-spacing: 0.01em;">
+                Access Granted
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px;">
+              <p style="margin: 0 0 20px; font-size: 0.95rem; color: #374151; line-height: 1.6;">
+                Your request to access <strong>{{ doc_name }}</strong> has been approved.
+              </p>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding: 8px 0 28px;">
+                    <a href="{{ access_url }}"
+                       style="display: inline-block; background: #DC2626; color: #ffffff; font-size: 1rem; font-weight: 600; padding: 14px 32px; border-radius: 6px; text-decoration: none;">
+                      Open {{ doc_name }}
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Info box -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="border-left: 3px solid #DC2626; background: #fff5f5; border-radius: 0 6px 6px 0; padding: 16px 20px;">
+                    <p style="margin: 0 0 8px; font-size: 0.875rem; color: #374151; line-height: 1.6;">
+                      &#9201; This link expires in <strong>{{ pin_expiry }} minutes</strong> &mdash; use it promptly.
+                    </p>
+                    <p style="margin: 0 0 8px; font-size: 0.875rem; color: #374151; line-height: 1.6;">
+                      &#128196; Once opened, your access window lasts <strong>{{ duration_label }}</strong>.
+                    </p>
+                    <p style="margin: 0; font-size: 0.875rem; color: #374151; line-height: 1.6;">
+                      &#128274; The document will be watermarked with your email address.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 20px 0 0; font-size: 0.85rem; color: #9ca3af; line-height: 1.5;">
+                This is a single-use link. Do not share it.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 20px 32px; text-align: center;">
+              <p style="margin: 0; font-size: 0.8rem; color: #9ca3af; line-height: 1.5;">
+                If you did not request access to {{ doc_name }}, please ignore this email.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

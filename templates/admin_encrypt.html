@@ -1,0 +1,87 @@
+{% extends "base_admin.html" %}
+{% block title %}Encrypt PDF{% endblock %}
+{% block page_title %}Encrypt PDF{% endblock %}
+
+{% block content %}
+
+{% if new_key %}
+<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:1.2rem 1.4rem;margin-bottom:1.5rem;">
+  <p style="font-weight:700;color:#92400E;margin-bottom:.5rem;">⚠ New encryption key generated — copy it now.</p>
+  <p style="font-size:.85rem;color:#92400E;margin-bottom:.8rem;">
+    Set this as <code>FERNET_KEY</code> in your environment and restart the server.
+    Without it no one will be able to decrypt the document.
+  </p>
+  <code style="display:block;word-break:break-all;background:#fff;border:1px solid #FED7AA;
+               border-radius:7px;padding:.7rem 1rem;font-size:.88rem;user-select:all;color:#1E1B4B;">
+    FERNET_KEY={{ new_key }}
+  </code>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
+
+  {# ── Upload panel ── #}
+  <div class="panel">
+    <div class="panel-header"><h2>Upload &amp; Encrypt</h2></div>
+    <div class="panel-body" style="padding:1.4rem;">
+
+      <p style="font-size:.88rem;color:#6B7280;margin-bottom:1.2rem;line-height:1.5;">
+        Upload your PDF. It will be encrypted in memory and saved as
+        <code>document.pdf.enc</code> on the server — the plaintext is never written to disk.
+      </p>
+
+      {% if environ_key_set %}
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:#065F46;
+                    background:#D1FAE5;border:1px solid #A7F3D0;border-radius:7px;
+                    padding:.55rem .9rem;margin-bottom:1.2rem;">
+          ✓ <strong>FERNET_KEY</strong> is set — existing key will be reused.
+        </div>
+      {% else %}
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:#92400E;
+                    background:#FEF3C7;border:1px solid #FDE68A;border-radius:7px;
+                    padding:.55rem .9rem;margin-bottom:1.2rem;">
+          ⚠ <strong>FERNET_KEY</strong> not set — a new key will be generated on upload.
+        </div>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('admin_encrypt') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="pdf" style="display:block;font-size:.82rem;font-weight:600;
+               color:#374151;margin-bottom:.4rem;">Select PDF file</label>
+        <input type="file" id="pdf" name="pdf" accept=".pdf,application/pdf" required
+               style="display:block;width:100%;padding:.6rem .8rem;
+                      border:1.5px dashed #D1D5DB;border-radius:8px;
+                      font-size:.88rem;color:#374151;background:#F9FAFB;
+                      cursor:pointer;margin-bottom:1.1rem;">
+        <button type="submit" class="btn btn-primary" style="width:100%;">
+          ⬆ Encrypt &amp; Save
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {# ── Share panel ── #}
+  <div class="panel">
+    <div class="panel-header"><h2>Share with Users</h2></div>
+    <div class="panel-body" style="padding:1.4rem;">
+
+      <p style="font-size:.88rem;color:#6B7280;margin-bottom:1.2rem;line-height:1.5;">
+        Download a branded PDF to share with users. When they open it, they'll see
+        buttons to request access and enter their PIN — no separate link needed.
+      </p>
+
+      <ul style="font-size:.85rem;color:#374151;margin:0 0 1.4rem 1.1rem;line-height:1.8;">
+        <li>Server URL is baked in at download time</li>
+        <li>Request Access and Enter PIN buttons included</li>
+        <li>Single-use PIN · 30-min expiry · 60-min window</li>
+      </ul>
+
+      <a class="btn btn-primary" href="{{ url_for('admin_download_access_page') }}"
+         style="width:100%;">
+        ⬇ Download document-access.pdf
+      </a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

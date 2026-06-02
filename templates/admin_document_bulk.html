@@ -1,0 +1,170 @@
+{% extends "base_admin.html" %}
+{% block title %}Bulk Upload{% endblock %}
+{% block page_title %}New Document{% endblock %}
+
+{% block content %}
+<div style="max-width:680px;">
+
+  <div style="display:flex;gap:.5rem;margin-bottom:1rem;">
+    <a href="{{ url_for('admin_document_new') }}"
+       style="padding:.45rem 1.1rem;border-radius:6px;font-size:.85rem;font-weight:600;
+              background:#fff;border:1.5px solid var(--gray-200);color:var(--gray-600);
+              text-decoration:none;">Single</a>
+    <span style="padding:.45rem 1.1rem;border-radius:6px;font-size:.85rem;font-weight:600;
+                 background:var(--primary);border:1.5px solid var(--primary);color:#fff;
+                 cursor:default;">Bulk Upload</span>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Bulk Upload Documents</h2>
+    </div>
+    <div class="panel-body" style="padding:1.6rem;">
+      <form method="post" action="{{ url_for('admin_document_bulk') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div style="display:flex;flex-direction:column;gap:1.2rem;">
+
+          <div>
+            <label style="display:block;font-size:.83rem;font-weight:600;color:var(--gray-700);margin-bottom:.35rem;">
+              PDF Files <span style="color:var(--error);">*</span>
+            </label>
+            <div id="drop-zone"
+                 style="border:2px dashed var(--gray-200);border-radius:10px;padding:2rem 1rem;
+                        text-align:center;background:var(--gray-50);cursor:pointer;transition:border-color .15s;">
+              <div style="font-size:2rem;margin-bottom:.5rem;">📂</div>
+              <p style="margin:0;font-size:.9rem;color:var(--gray-600);">
+                Drag &amp; drop PDFs here, or <label for="pdfs" style="color:var(--primary);cursor:pointer;font-weight:600;">browse</label>
+              </p>
+              <p style="margin:.3rem 0 0;font-size:.8rem;color:var(--gray-400);">Filenames become document names</p>
+              <input type="file" id="pdfs" name="pdfs" accept=".pdf,application/pdf"
+                     multiple required style="display:none;">
+            </div>
+            <ul id="file-list"
+                style="margin:.6rem 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:.3rem;"></ul>
+          </div>
+
+          <div style="border-top:1px solid var(--gray-100);padding-top:1.2rem;">
+            <p style="margin:0 0 .9rem;font-size:.83rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.04em;">
+              Shared Settings — applied to all uploaded files
+            </p>
+
+            <div style="display:flex;flex-direction:column;gap:1rem;">
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                <div>
+                  <label for="expires_at" style="display:block;font-size:.83rem;font-weight:600;color:var(--gray-700);margin-bottom:.35rem;">
+                    Expires At
+                  </label>
+                  <input type="datetime-local" id="expires_at" name="expires_at"
+                         style="width:100%;padding:.6rem .85rem;border:1.5px solid var(--gray-200);
+                                border-radius:8px;font-size:.88rem;color:var(--gray-900);outline:none;
+                                transition:border-color .15s;box-sizing:border-box;"
+                         onfocus="this.style.borderColor='var(--primary)'"
+                         onblur="this.style.borderColor='var(--gray-200)'">
+                  <p class="text-muted" style="margin-top:.3rem;">Leave blank for no expiry.</p>
+                </div>
+                <div>
+                  <label for="max_viewers" style="display:block;font-size:.83rem;font-weight:600;color:var(--gray-700);margin-bottom:.35rem;">
+                    Max Viewers
+                  </label>
+                  <input type="number" id="max_viewers" name="max_viewers" min="1"
+                         placeholder="Unlimited"
+                         style="width:100%;padding:.6rem .85rem;border:1.5px solid var(--gray-200);
+                                border-radius:8px;font-size:.88rem;color:var(--gray-900);outline:none;
+                                transition:border-color .15s;box-sizing:border-box;"
+                         onfocus="this.style.borderColor='var(--primary)'"
+                         onblur="this.style.borderColor='var(--gray-200)'">
+                  <p class="text-muted" style="margin-top:.3rem;">Leave blank for unlimited.</p>
+                </div>
+              </div>
+
+              <div>
+                <label for="approved_domains" style="display:block;font-size:.83rem;font-weight:600;color:var(--gray-700);margin-bottom:.35rem;">
+                  Approved Domains
+                </label>
+                <input type="text" id="approved_domains" name="approved_domains"
+                       placeholder="company.com, partner.org"
+                       style="width:100%;padding:.6rem .85rem;border:1.5px solid var(--gray-200);
+                              border-radius:8px;font-size:.88rem;color:var(--gray-900);outline:none;
+                              transition:border-color .15s;box-sizing:border-box;"
+                       onfocus="this.style.borderColor='var(--primary)'"
+                       onblur="this.style.borderColor='var(--gray-200)'">
+                <p class="text-muted" style="margin-top:.3rem;">Comma-separated. Leave blank to allow any domain.</p>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:.6rem;">
+                <input type="checkbox" id="require_email_verify" name="require_email_verify" value="1"
+                       style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;">
+                <label for="require_email_verify" style="font-size:.88rem;font-weight:500;color:var(--gray-700);cursor:pointer;">
+                  Require email verification before request is shown to admin
+                </label>
+              </div>
+
+            </div>
+          </div>
+
+          <div style="display:flex;gap:.8rem;padding-top:.4rem;">
+            <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+              Upload Documents
+            </button>
+            <a href="{{ url_for('admin_documents') }}" class="btn btn-outline">Cancel</a>
+          </div>
+
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const input = document.getElementById('pdfs');
+  const dropZone = document.getElementById('drop-zone');
+  const fileList = document.getElementById('file-list');
+  const submitBtn = document.getElementById('submit-btn');
+
+  function renderFiles(files) {
+    fileList.innerHTML = '';
+    if (!files.length) { submitBtn.disabled = true; return; }
+    Array.from(files).forEach(f => {
+      const li = document.createElement('li');
+      li.style.cssText = 'display:flex;align-items:center;gap:.5rem;padding:.4rem .7rem;background:#f8fafc;border-radius:6px;font-size:.85rem;color:#1e293b;';
+      li.innerHTML = '<span style="color:#64748b;">📄</span>' + escHtml(f.name)
+        + '<span style="margin-left:auto;color:#94a3b8;font-size:.78rem;">'
+        + (f.size ? (f.size / 1024).toFixed(0) + ' KB' : '') + '</span>';
+      fileList.appendChild(li);
+    });
+    submitBtn.disabled = false;
+    submitBtn.textContent = `Upload ${files.length} Document${files.length > 1 ? 's' : ''}`;
+  }
+
+  dropZone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => renderFiles(input.files));
+
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--primary)';
+    dropZone.style.background = '#eff6ff';
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.style.borderColor = 'var(--gray-200)';
+    dropZone.style.background = 'var(--gray-50)';
+  });
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--gray-200)';
+    dropZone.style.background = 'var(--gray-50)';
+    const dt = e.dataTransfer;
+    if (dt.files.length) {
+      input.files = dt.files;
+      renderFiles(dt.files);
+    }
+  });
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+})();
+</script>
+{% endblock %}

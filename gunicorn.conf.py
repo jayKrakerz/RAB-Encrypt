@@ -1,0 +1,11 @@
+workers = 2
+threads = 2
+bind = "0.0.0.0:8000"
+timeout = 120
+keepalive = 5
+accesslog = "-"
+errorlog = "-"
+loglevel = "info"
+worker_class = "sync"
+max_requests = 1000
+max_requests_jitter = 100

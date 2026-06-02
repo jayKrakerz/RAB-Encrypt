@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: securedocs
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -c gunicorn.conf.py app:app
+    plan: free
+    envVars:
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: SMTP_HOST
+        value: mail.riskarenabrokerage.com
+      - key: SMTP_PORT
+        value: 465
+      - key: SMTP_USER
+        value: admin@riskarenabrokerage.com
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_USE_SSL
+        value: 1
+      - key: SMTP_USE_TLS
+        value: 0
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1

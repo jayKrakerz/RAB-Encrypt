@@ -1,0 +1,36 @@
+{% extends "base_user.html" %}
+{% block title %}Enter PIN — {{ doc_name }}{% endblock %}
+
+{% block content %}
+<div class="steps">
+  <div class="step-pip"></div>
+  <div class="step-pip active"></div>
+  <div class="step-pip"></div>
+</div>
+
+<h1>Enter Your PIN</h1>
+<p class="subtitle">
+  Enter the email you used to request access and the 6-digit PIN from your approval email.
+</p>
+
+<div class="info-box">
+  Your PIN is valid for <strong>30 minutes</strong> after it was sent.
+  Once entered, you have the duration specified in your approval email to view the document.
+</div>
+
+<form method="post" action="{{ url_for('enter_pin', doc_id=doc.id) }}">
+  <label for="email">Email address</label>
+  <input type="email" id="email" name="email" placeholder="you@example.com"
+         required autocomplete="email" autofocus>
+
+  <label for="pin">6-digit PIN</label>
+  <input type="text" id="pin" name="pin" placeholder="000000" maxlength="6"
+         pattern="\d{6}" inputmode="numeric" autocomplete="one-time-code" required
+         style="font-size:1.5rem;letter-spacing:.35rem;text-align:center;">
+
+  <button type="submit" class="btn btn-success">Unlock Document →</button>
+</form>
+
+<hr class="divider">
+<p class="helper">Don't have a PIN yet? <a href="{{ url_for('request_access', doc_id=doc.id) }}">Request access →</a></p>
+{% endblock %}

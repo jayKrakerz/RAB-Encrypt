@@ -1,0 +1,249 @@
+{% extends "base_admin.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Access Requests{% endblock %}
+
+{% block content %}
+
+{# ── Stats ── #}
+<div class="stats-grid">
+  <div class="stat-card pending">
+    <div class="label">Pending</div>
+    <div class="value">{{ pending | length }}</div>
+  </div>
+  <div class="stat-card approved">
+    <div class="label">Awaiting PIN</div>
+    <div class="value">{{ approved | length }}</div>
+  </div>
+  <div class="stat-card active">
+    <div class="label">Sessions Used</div>
+    <div class="value">{{ used | length }}</div>
+  </div>
+  <div class="stat-card denied">
+    <div class="label">Denied</div>
+    <div class="value">{{ denied | length }}</div>
+  </div>
+</div>
+
+{# ── Pending — with bulk approve ── #}
+<div class="panel">
+  <div class="panel-header">
+    <h2>Pending Requests</h2>
+    <span class="badge badge-pending">{{ pending | length }}</span>
+  </div>
+  <div class="panel-body">
+    {% if pending %}
+    <form method="post" action="{{ url_for('bulk_approve') }}" id="bulk-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      {# Bulk action bar #}
+      <div style="display:flex;align-items:center;gap:.8rem;padding:.75rem 1.2rem;
+                  background:#F9FAFB;border-bottom:1px solid #F3F4F6;">
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;
+                      font-weight:600;color:#374151;cursor:pointer;">
+          <input type="checkbox" id="select-all" onchange="toggleAll(this)"
+                 style="width:15px;height:15px;accent-color:#DC2626;">
+          Select all
+        </label>
+        <span style="color:#E5E7EB;">|</span>
+        <select name="duration" style="padding:.35rem .7rem;border:1.5px solid #E5E7EB;
+               border-radius:6px;font-size:.82rem;color:#374151;background:#fff;">
+          {% for val, label in duration_options %}
+            <option value="{{ val }}" {% if val == access_window %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-success" style="width:auto;padding:.4rem 1rem;font-size:.82rem;">
+          ✓ Approve Selected
+        </button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:36px;"></th>
+            <th>#</th>
+            <th>Email</th>
+            <th>Requested (UTC)</th>
+            <th>Individual actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in pending %}
+          <tr>
+            <td>
+              <input type="checkbox" name="request_ids" value="{{ row.id }}"
+                     class="row-check" style="width:15px;height:15px;accent-color:#DC2626;">
+            </td>
+            <td class="ts">{{ row.id }}</td>
+            <td class="email-cell">{{ row.email }}</td>
+            <td class="ts">{{ row.created_at[:19] }}</td>
+            <td>
+              <div class="btn-actions">
+                {# Individual approve with its own duration #}
+                <form class="form-inline" method="post"
+                      action="{{ url_for('approve_request', request_id=row.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <select name="duration" style="padding:.3rem .5rem;border:1px solid #E5E7EB;
+                         border-radius:5px;font-size:.78rem;color:#374151;">
+                    {% for val, label in duration_options %}
+                      <option value="{{ val }}" {% if val == access_window %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" class="btn btn-success" style="width:auto;padding:.35rem .8rem;font-size:.78rem;">✓ Approve</button>
+                </form>
+                <form class="form-inline" method="post"
+                      action="{{ url_for('deny_request', request_id=row.id) }}"
+                      onsubmit="return confirm('Deny {{ row.email }}?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-danger" style="width:auto;padding:.35rem .8rem;font-size:.78rem;">✕ Deny</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </form>
+    {% else %}
+    <div class="empty">
+      <div class="empty-icon">✓</div>
+      <p>No pending requests — all caught up.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Approved / Awaiting PIN ── #}
+<div class="panel">
+  <div class="panel-header">
+    <h2>Awaiting PIN Entry</h2>
+    <span class="badge badge-approved">{{ approved | length }}</span>
+    <span class="text-muted" style="margin-left:auto;font-size:.78rem;">PIN expires {{ pin_expiry }} min after approval</span>
+  </div>
+  <div class="panel-body">
+    {% if approved %}
+    <table>
+      <thead>
+        <tr><th>#</th><th>Email</th><th>Approved (UTC)</th><th>Window</th><th>PIN Expires</th></tr>
+      </thead>
+      <tbody>
+        {% for row in approved %}
+        <tr>
+          <td class="ts">{{ row.id }}</td>
+          <td class="email-cell">{{ row.email }}</td>
+          <td class="ts">{{ row.approved_at[:19] if row.approved_at }}</td>
+          <td class="ts">{{ row.access_duration_minutes or access_window }} min</td>
+          <td class="ts">{{ row.approved_at[:16] if row.approved_at }} <span class="text-muted">+{{ pin_expiry }}m</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty"><div class="empty-icon">📧</div><p>No PINs waiting to be redeemed.</p></div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Active sessions ── #}
+<div class="panel">
+  <div class="panel-header">
+    <h2>Sessions</h2>
+    <span class="badge badge-active">{{ used | length }}</span>
+  </div>
+  <div class="panel-body">
+    {% if used %}
+    <table>
+      <thead>
+        <tr><th>#</th><th>Email</th><th>Unlocked (UTC)</th><th>Window</th><th>Status</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        {% for row in used %}
+        <tr>
+          <td class="ts">{{ row.id }}</td>
+          <td class="email-cell">{{ row.email }}</td>
+          <td class="ts">{{ row.unlocked_at[:19] if row.unlocked_at }}</td>
+          <td class="ts">{{ row.access_duration_minutes or access_window }} min</td>
+          <td>
+            {% if row.session_token %}
+              <span class="badge badge-active">Active</span>
+            {% else %}
+              <span class="badge badge-revoked">Revoked</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.session_token %}
+            <form class="form-inline" method="post"
+                  action="{{ url_for('revoke_session', request_id=row.id) }}"
+                  onsubmit="return confirm('Revoke session for {{ row.email }}?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-danger" style="width:auto;padding:.35rem .8rem;font-size:.78rem;">Revoke</button>
+            </form>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty"><div class="empty-icon">📄</div><p>No sessions yet.</p></div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Denied ── #}
+{% if denied %}
+<div class="panel">
+  <div class="panel-header">
+    <h2>Denied</h2>
+    <span class="badge badge-denied">{{ denied | length }}</span>
+  </div>
+  <div class="panel-body">
+    <table>
+      <thead><tr><th>#</th><th>Email</th><th>Requested (UTC)</th></tr></thead>
+      <tbody>
+        {% for row in denied %}
+        <tr>
+          <td class="ts">{{ row.id }}</td>
+          <td class="email-cell">{{ row.email }}</td>
+          <td class="ts">{{ row.created_at[:19] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Expired PINs ── #}
+{% if expired %}
+<div class="panel">
+  <div class="panel-header">
+    <h2>Expired PINs</h2>
+    <span class="badge" style="background:#F3F4F6;color:#6B7280;">{{ expired | length }}</span>
+    <span class="text-muted" style="margin-left:auto;font-size:.78rem;">Auto-cleaned by background job</span>
+  </div>
+  <div class="panel-body">
+    <table>
+      <thead><tr><th>#</th><th>Email</th><th>Approved (UTC)</th></tr></thead>
+      <tbody>
+        {% for row in expired %}
+        <tr>
+          <td class="ts">{{ row.id }}</td>
+          <td class="email-cell">{{ row.email }}</td>
+          <td class="ts">{{ row.approved_at[:19] if row.approved_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+function toggleAll(master) {
+  document.querySelectorAll('.row-check').forEach(function(cb) {
+    cb.checked = master.checked;
+  });
+}
+</script>
+
+{% endblock %}

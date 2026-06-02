@@ -1,0 +1,205 @@
+{% extends "base_admin.html" %}
+{% block title %}Audit Log{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
+
+{% block content %}
+
+{% set meta = {
+  "access_requested": {"label": "Access Requested", "icon": "📥", "cls": "ev-requested"},
+  "pin_redeemed":     {"label": "PIN Redeemed",     "icon": "🔓", "cls": "ev-redeemed"},
+  "document_viewed":  {"label": "Document Viewed",  "icon": "👁",  "cls": "ev-viewed"},
+  "request_approved": {"label": "Approved",         "icon": "✓",  "cls": "ev-approved"},
+  "request_denied":   {"label": "Denied",           "icon": "✕",  "cls": "ev-denied"},
+  "session_revoked":  {"label": "Session Revoked",  "icon": "🚫", "cls": "ev-revoked"},
+} %}
+
+<style>
+  .ev-requested { background:#EFF6FF; color:#1E40AF; border-color:#BFDBFE; }
+  .ev-redeemed  { background:#D1FAE5; color:#065F46; border-color:#6EE7B7; }
+  .ev-viewed    { background:#EDE9FE; color:#4C1D95; border-color:#C4B5FD; }
+  .ev-approved  { background:#D1FAE5; color:#065F46; border-color:#6EE7B7; }
+  .ev-denied    { background:#FEE2E2; color:#991B1B; border-color:#FECACA; }
+  .ev-revoked   { background:#FEF3C7; color:#92400E; border-color:#FDE68A; }
+
+  .ev-badge {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .22rem .7rem; border-radius: 99px;
+    font-size: .75rem; font-weight: 700;
+    border: 1px solid transparent; white-space: nowrap;
+  }
+
+  .ip-chip {
+    display: inline-block; font-family: monospace; font-size: .8rem;
+    background: var(--gray-100); border: 1px solid var(--gray-200);
+    border-radius: 5px; padding: .15rem .5rem; color: var(--gray-700);
+    cursor: pointer; user-select: all;
+  }
+  .ip-chip:hover { background: var(--gray-200); }
+
+  .ua-cell {
+    max-width: 200px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+    font-size: .78rem; color: var(--gray-500);
+  }
+
+  .filter-bar {
+    display: flex; gap: .7rem; margin-bottom: 1.2rem;
+    flex-wrap: wrap; align-items: center;
+  }
+  .filter-bar input, .filter-bar select {
+    padding: .48rem .8rem;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 7px; font-size: .85rem;
+    color: var(--gray-700); background: #fff; outline: none;
+    transition: border-color .15s;
+  }
+  .filter-bar input:focus, .filter-bar select:focus { border-color: var(--primary); }
+  .filter-bar input[type="text"] { min-width: 200px; }
+  .filter-bar input[type="date"] { min-width: 140px; }
+  .filter-bar label { font-size: .82rem; font-weight: 600; color: var(--gray-500); }
+
+  .location-cell { font-size: .8rem; color: var(--gray-500); white-space: nowrap; }
+</style>
+
+{# ── Summary cards ── #}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.9rem;margin-bottom:1.6rem;">
+  <div class="stat-card pending">
+    <div class="label">Requests</div>
+    <div class="value">{{ counts.access_requested }}</div>
+  </div>
+  <div class="stat-card approved">
+    <div class="label">PINs Redeemed</div>
+    <div class="value">{{ counts.pin_redeemed }}</div>
+  </div>
+  <div class="stat-card active">
+    <div class="label">Views</div>
+    <div class="value">{{ counts.document_viewed }}</div>
+  </div>
+  <div class="stat-card denied">
+    <div class="label">Denied</div>
+    <div class="value">{{ counts.request_denied }}</div>
+  </div>
+</div>
+
+{# ── Filter bar ── #}
+<form method="get" action="{{ url_for('admin_audit') }}" class="filter-bar" id="filter-form">
+  <input type="text" name="q" value="{{ filters.q or '' }}" placeholder="Search email or IP…">
+
+  <select name="event" onchange="this.form.submit()">
+    <option value="">All events</option>
+    {% for ev in [
+      ("access_requested", "Access Requested"),
+      ("pin_redeemed",     "PIN Redeemed"),
+      ("document_viewed",  "Document Viewed"),
+      ("request_approved", "Approved"),
+      ("request_denied",   "Denied"),
+      ("session_revoked",  "Session Revoked"),
+    ] %}
+      <option value="{{ ev[0] }}" {% if filters.event == ev[0] %}selected{% endif %}>{{ ev[1] }}</option>
+    {% endfor %}
+  </select>
+
+  <label>From <input type="date" name="date_from" value="{{ filters.date_from or '' }}" onchange="this.form.submit()"></label>
+  <label>To <input type="date" name="date_to" value="{{ filters.date_to or '' }}" onchange="this.form.submit()"></label>
+
+  <button type="submit" class="btn btn-outline" style="font-size:.82rem;padding:.45rem .9rem;">Filter</button>
+
+  {% if filters.q or filters.event or filters.date_from or filters.date_to %}
+    <a href="{{ url_for('admin_audit') }}" class="btn btn-ghost" style="font-size:.82rem;padding:.45rem .9rem;">Clear</a>
+  {% endif %}
+
+  <span class="text-muted" style="margin-left:auto;">{{ total }} event{{ 's' if total != 1 else '' }}</span>
+
+  <a href="{{ url_for('export_audit') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}"
+     class="btn btn-outline" style="font-size:.82rem;padding:.45rem .9rem;">⬇ CSV</a>
+</form>
+
+{# ── Log table ── #}
+<div class="panel">
+  <div class="panel-body">
+    {% if logs %}
+    <table>
+      <thead>
+        <tr>
+          <th>When (UTC)</th>
+          <th>Event</th>
+          <th>Email</th>
+          <th>Document</th>
+          <th>Location</th>
+          <th>IP Address</th>
+          <th>Browser / Client</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in logs %}
+        {% set m = meta.get(row.event, {"label": row.event, "icon": "•", "cls": ""}) %}
+        <tr>
+          <td class="ts" style="white-space:nowrap;">{{ row.created_at[:19] }}</td>
+          <td>
+            <span class="ev-badge {{ m.cls }}">{{ m.icon }} {{ m.label }}</span>
+          </td>
+          <td class="email-cell">{{ row.email or '—' }}</td>
+          <td class="ts">{{ row.document_id or '—' }}</td>
+          <td class="location-cell">
+            {% if row.city or row.country %}
+              {{ row.city or '' }}{% if row.city and row.country %}, {% endif %}{{ row.country or '' }}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.ip_address %}
+              <span class="ip-chip" title="Click to select">{{ row.ip_address }}</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.user_agent %}
+              <div class="ua-cell" title="{{ row.user_agent }}">{{ row.user_agent }}</div>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {# Pagination #}
+    {% if total_pages > 1 %}
+    <div class="pagination">
+      {% if page > 1 %}
+        <a href="{{ url_for('admin_audit', page=page-1, q=filters.q or '', event=filters.event or '', date_from=filters.date_from or '', date_to=filters.date_to or '') }}">← Prev</a>
+      {% else %}
+        <span class="disabled">← Prev</span>
+      {% endif %}
+
+      {% set start_p = [1, page - 2] | max %}
+      {% set end_p   = [total_pages, page + 2] | min %}
+      {% for p in range(start_p, end_p + 1) %}
+        {% if p == page %}
+          <span class="current">{{ p }}</span>
+        {% else %}
+          <a href="{{ url_for('admin_audit', page=p, q=filters.q or '', event=filters.event or '', date_from=filters.date_from or '', date_to=filters.date_to or '') }}">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
+
+      {% if page < total_pages %}
+        <a href="{{ url_for('admin_audit', page=page+1, q=filters.q or '', event=filters.event or '', date_from=filters.date_from or '', date_to=filters.date_to or '') }}">Next →</a>
+      {% else %}
+        <span class="disabled">Next →</span>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty">
+      <div class="empty-icon">📋</div>
+      <p>No audit events match your filters.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base_user.html" %}
+{% block title %}Request Status — {{ doc_name }}{% endblock %}
+
+{% block content %}
+<h1>Check Request Status</h1>
+<p class="subtitle">Enter the email you used to request access to see where your request stands.</p>
+
+<form method="post" action="{{ url_for('request_status', doc_id=doc_id) if doc_id else url_for('request_status') }}">
+  <label for="email">Email address</label>
+  <input type="email" id="email" name="email" placeholder="you@example.com" required autofocus>
+  <button type="submit" class="btn">Check Status</button>
+</form>
+
+{% if status_info %}
+  <hr class="divider">
+
+  {% set s = status_info.status %}
+  {% if s == "not_found" %}
+    <div style="text-align:center;padding:1.2rem 0;">
+      <div style="font-size:2.5rem;margin-bottom:.5rem;">🔍</div>
+      <p style="font-weight:600;color:#374151;">No request found</p>
+      <p class="subtitle" style="margin-top:.3rem;">No access request was found for <strong>{{ status_info.email }}</strong>.</p>
+      <a class="btn" href="{{ url_for('request_access', doc_id=doc_id) if doc_id else url_for('request_access') }}" style="margin-top:.8rem;display:inline-block;width:auto;padding:.6rem 1.4rem;">Submit a Request</a>
+    </div>
+
+  {% elif s == "pending" %}
+    <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:10px;padding:1.2rem 1.4rem;">
+      <p style="font-weight:700;color:#92400E;margin-bottom:.3rem;">⏳ Pending Review</p>
+      <p style="font-size:.88rem;color:#92400E;">Your request is in the queue. The admin will review it shortly — check your email for a PIN once approved.</p>
+    </div>
+
+  {% elif s == "approved" %}
+    {% if status_info.get("pin_expired") %}
+      <div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:10px;padding:1.2rem 1.4rem;">
+        <p style="font-weight:700;color:#991B1B;margin-bottom:.3rem;">⏱ PIN Expired</p>
+        <p style="font-size:.88rem;color:#991B1B;">The PIN that was sent to you has expired. Please submit a new access request.</p>
+      </div>
+      <a class="btn" href="{{ url_for('request_access', doc_id=doc_id) if doc_id else url_for('request_access') }}" style="margin-top:.9rem;display:block;">Submit New Request</a>
+    {% else %}
+      <div style="background:#D1FAE5;border:1px solid #A7F3D0;border-radius:10px;padding:1.2rem 1.4rem;">
+        <p style="font-weight:700;color:#065F46;margin-bottom:.3rem;">✓ Approved — PIN Sent</p>
+        <p style="font-size:.88rem;color:#065F46;">
+          Your PIN was emailed to you.
+          {% if status_info.get("pin_expires_in") is not none %}
+            It expires in <strong>{{ status_info.pin_expires_in }} minute(s)</strong>.
+          {% endif %}
+          Enter it now to unlock the document.
+        </p>
+      </div>
+      <a class="btn btn-success" href="{{ url_for('enter_pin', doc_id=doc_id) if doc_id else url_for('enter_pin') }}" style="margin-top:.9rem;display:block;">Enter PIN →</a>
+    {% endif %}
+
+  {% elif s == "used" %}
+    <div style="background:#EDE9FE;border:1px solid #C4B5FD;border-radius:10px;padding:1.2rem 1.4rem;">
+      <p style="font-weight:700;color:#4C1D95;margin-bottom:.3rem;">📄 PIN Redeemed</p>
+      <p style="font-size:.88rem;color:#4C1D95;">Your PIN has already been used. Your session may still be active — try opening the document. If your session expired, submit a new request.</p>
+    </div>
+    <a class="btn" href="{{ url_for('request_access', doc_id=doc_id) if doc_id else url_for('request_access') }}" style="margin-top:.9rem;display:block;">Submit New Request</a>
+
+  {% elif s == "denied" %}
+    <div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:10px;padding:1.2rem 1.4rem;">
+      <p style="font-weight:700;color:#991B1B;margin-bottom:.3rem;">✕ Request Not Approved</p>
+      <p style="font-size:.88rem;color:#991B1B;">Your request was not approved. Contact the document owner if you believe this is an error.</p>
+    </div>
+
+  {% elif s == "expired" %}
+    <div style="background:#F3F4F6;border:1px solid #E5E7EB;border-radius:10px;padding:1.2rem 1.4rem;">
+      <p style="font-weight:700;color:#374151;margin-bottom:.3rem;">⏱ PIN Expired</p>
+      <p style="font-size:.88rem;color:#6B7280;">Your PIN expired before it was used. Submit a new request to get a fresh one.</p>
+    </div>
+    <a class="btn" href="{{ url_for('request_access', doc_id=doc_id) if doc_id else url_for('request_access') }}" style="margin-top:.9rem;display:block;">Submit New Request</a>
+  {% endif %}
+{% endif %}
+
+<hr class="divider">
+<p class="helper"><a href="{{ url_for('request_access', doc_id=doc_id) if doc_id else url_for('request_access') }}">← Back to request page</a></p>
+{% endblock %}

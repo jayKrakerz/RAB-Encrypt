@@ -1,0 +1,417 @@
+{% extends "base_admin.html" %}
+{% block title %}{{ doc.name }}{% endblock %}
+{% block page_title %}{{ doc.name }}{% endblock %}
+{% block topbar_meta %}
+  {% if doc.status == 'active' %}
+    <span class="badge badge-active">Active</span>
+  {% else %}
+    <span class="badge badge-archived">Archived</span>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<style>
+  .search-bar {
+    display: flex; gap: .7rem; align-items: center;
+    margin-bottom: 1.2rem; flex-wrap: wrap;
+  }
+  .search-bar input {
+    padding: .5rem .85rem;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 8px;
+    font-size: .88rem; color: var(--gray-900);
+    outline: none; flex: 1; min-width: 200px;
+    transition: border-color .15s;
+  }
+  .search-bar input:focus { border-color: var(--primary); }
+  .collapsible-header {
+    display: flex; align-items: center; gap: .6rem;
+    cursor: pointer; user-select: none;
+  }
+  .collapsible-header .toggle-icon {
+    font-size: .8rem; transition: transform .2s; color: var(--gray-400);
+  }
+  .collapsible-header.open .toggle-icon { transform: rotate(90deg); }
+  .collapsible-body { display: none; }
+  .collapsible-body.open { display: block; }
+
+  .deny-row { display: none; background: var(--gray-50); }
+  .deny-row td { padding: .6rem 1.2rem; }
+  .deny-row input[type="text"] {
+    padding: .4rem .7rem;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 6px;
+    font-size: .84rem; color: var(--gray-900);
+    outline: none; width: 260px;
+    transition: border-color .15s;
+  }
+  .deny-row input:focus { border-color: var(--error); }
+
+  .doc-settings {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: .8rem; margin-bottom: 1.5rem;
+  }
+  .doc-setting {
+    background: #fff; border: 1px solid var(--gray-200);
+    border-radius: 10px; padding: .85rem 1rem;
+  }
+  .doc-setting .ds-label { font-size: .72rem; font-weight: 700; text-transform: uppercase;
+                            letter-spacing: .05em; color: var(--gray-500); margin-bottom: .25rem; }
+  .doc-setting .ds-value { font-size: .92rem; font-weight: 600; color: var(--gray-900); }
+</style>
+
+{# ── Document settings summary ── #}
+<div class="doc-settings">
+  <div class="doc-setting">
+    <div class="ds-label">Expires</div>
+    <div class="ds-value">{{ doc.expires_at[:16] if doc.expires_at else 'Never' }}</div>
+  </div>
+  <div class="doc-setting">
+    <div class="ds-label">Max Viewers</div>
+    <div class="ds-value">{{ doc.max_viewers or '∞' }}</div>
+  </div>
+  <div class="doc-setting">
+    <div class="ds-label">Approved Domains</div>
+    <div class="ds-value" style="font-size:.8rem;font-weight:500;">{{ doc.approved_domains or 'Any' }}</div>
+  </div>
+  <div class="doc-setting">
+    <div class="ds-label">Email Verify</div>
+    <div class="ds-value">{{ 'Required' if doc.require_email_verify else 'No' }}</div>
+  </div>
+  <div class="doc-setting">
+    <div class="ds-label">File</div>
+    <div class="ds-value" style="font-size:.8rem;font-weight:500;word-break:break-all;">{{ doc.enc_filename }}</div>
+  </div>
+</div>
+
+<div style="display:flex;gap:.7rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+  <a href="{{ url_for('admin_download_access_page', document_id=doc.id) }}" class="btn btn-outline">
+    ⬇ Download Access PDF
+  </a>
+  <form class="form-inline" method="post"
+        action="{{ url_for('rotate_document_key', document_id=doc.id) }}"
+        onsubmit="return confirm('Rotate encryption key for this document? Anyone mid-session will lose access immediately.')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-warning">↻ Rotate Key</button>
+  </form>
+</div>
+
+{# ── Search ── #}
+<div class="search-bar">
+  <input type="text" id="email-search" placeholder="Filter by email…" oninput="filterByEmail(this.value)">
+  <span class="text-muted" id="filter-count"></span>
+</div>
+
+{# ── Pending requests ── #}
+<div class="panel">
+  <div class="panel-header">
+    <h2>Pending Requests</h2>
+    <span class="badge badge-pending">{{ pending | length }}</span>
+  </div>
+  <div class="panel-body">
+    {% if pending %}
+    <form method="post" action="{{ url_for('bulk_approve_document', document_id=doc.id) }}" id="bulk-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:flex;align-items:center;gap:.8rem;padding:.7rem 1.2rem;
+                  background:var(--gray-50);border-bottom:1px solid var(--gray-100);">
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;
+                      font-weight:600;color:var(--gray-700);cursor:pointer;">
+          <input type="checkbox" id="select-all" onchange="toggleAll(this)"
+                 style="width:15px;height:15px;accent-color:var(--primary);">
+          Select all
+        </label>
+        <span style="color:var(--gray-200);">|</span>
+        <select name="duration" style="padding:.35rem .65rem;border:1.5px solid var(--gray-200);
+               border-radius:6px;font-size:.82rem;color:var(--gray-700);background:#fff;">
+          {% for val, label in duration_options %}
+            <option value="{{ val }}" {% if val == access_window %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-success" style="padding:.4rem 1rem;font-size:.82rem;">
+          ✓ Approve Selected
+        </button>
+      </div>
+      <table id="pending-table">
+        <thead>
+          <tr>
+            <th style="width:36px;"></th>
+            <th>#</th>
+            <th>Email</th>
+            <th>Requested (UTC)</th>
+            <th>Email Verified</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in pending %}
+          <tr class="data-row" data-email="{{ row.email }}">
+            <td>
+              <input type="checkbox" name="request_ids" value="{{ row.id }}"
+                     class="row-check" style="width:15px;height:15px;accent-color:var(--primary);">
+            </td>
+            <td class="ts">{{ row.id }}</td>
+            <td class="email-cell">{{ row.email }}</td>
+            <td class="ts">{{ row.created_at[:19] }}</td>
+            <td>
+              {% if row.email_verified %}
+                <span class="badge badge-active">Verified</span>
+              {% else %}
+                <span class="badge badge-revoked">Unverified</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-actions">
+                <form class="form-inline" method="post"
+                      action="{{ url_for('approve_request', document_id=doc.id, request_id=row.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <select name="duration" style="padding:.3rem .5rem;border:1px solid var(--gray-200);
+                         border-radius:5px;font-size:.78rem;color:var(--gray-700);">
+                    {% for val, label in duration_options %}
+                      <option value="{{ val }}" {% if val == access_window %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" class="btn btn-success" style="padding:.35rem .8rem;font-size:.78rem;">✓ Approve</button>
+                </form>
+                <button type="button" class="btn btn-danger" style="padding:.35rem .8rem;font-size:.78rem;"
+                        onclick="toggleDeny('deny-{{ row.id }}', this)">✕ Deny</button>
+              </div>
+            </td>
+          </tr>
+          <tr class="deny-row" id="deny-{{ row.id }}">
+            <td colspan="6">
+              <form method="post" action="{{ url_for('deny_request', document_id=doc.id, request_id=row.id) }}"
+                    style="display:flex;align-items:center;gap:.6rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="text" name="deny_reason" placeholder="Optional reason (sent to user)">
+                <button type="submit" class="btn btn-danger" style="padding:.4rem .9rem;font-size:.82rem;">Confirm Deny</button>
+                <button type="button" class="btn btn-ghost" style="font-size:.82rem;"
+                        onclick="toggleDeny('deny-{{ row.id }}', null)">Cancel</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </form>
+    {% else %}
+    <div class="empty">
+      <div class="empty-icon">✓</div>
+      <p>No pending requests.</p>
+    </div>
+    {% endif %}
+
+    {# Pagination #}
+    {% if pending_pages > 1 %}
+    <div class="pagination">
+      {% if pending_page > 1 %}
+        <a href="{{ url_for('admin_document', document_id=doc.id, pending_page=pending_page-1) }}">← Prev</a>
+      {% else %}
+        <span class="disabled">← Prev</span>
+      {% endif %}
+      <span class="current">{{ pending_page }} / {{ pending_pages }}</span>
+      {% if pending_page < pending_pages %}
+        <a href="{{ url_for('admin_document', document_id=doc.id, pending_page=pending_page+1) }}">Next →</a>
+      {% else %}
+        <span class="disabled">Next →</span>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Approved / Awaiting PIN ── #}
+<div class="panel">
+  <div class="panel-header">
+    <h2>Awaiting PIN Entry</h2>
+    <span class="badge badge-approved">{{ approved | length }}</span>
+    <span class="text-muted" style="margin-left:auto;font-size:.78rem;">PIN expires {{ pin_expiry }} min after approval</span>
+  </div>
+  <div class="panel-body">
+    {% if approved %}
+    <table id="approved-table">
+      <thead>
+        <tr><th>Email</th><th>Approved (UTC)</th><th>Window</th><th>PIN Expires</th></tr>
+      </thead>
+      <tbody>
+        {% for row in approved %}
+        <tr class="data-row" data-email="{{ row.email }}">
+          <td class="email-cell">{{ row.email }}</td>
+          <td class="ts">{{ row.approved_at[:19] if row.approved_at }}</td>
+          <td class="ts">{{ row.access_duration_minutes or access_window }} min</td>
+          <td class="ts">{{ row.approved_at[:16] if row.approved_at }} <span class="text-muted">+{{ pin_expiry }}m</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty"><div class="empty-icon">📧</div><p>No PINs waiting to be redeemed.</p></div>
+    {% endif %}
+
+    {% if approved_pages > 1 %}
+    <div class="pagination">
+      {% if approved_page > 1 %}
+        <a href="{{ url_for('admin_document', document_id=doc.id, approved_page=approved_page-1) }}">← Prev</a>
+      {% else %}
+        <span class="disabled">← Prev</span>
+      {% endif %}
+      <span class="current">{{ approved_page }} / {{ approved_pages }}</span>
+      {% if approved_page < approved_pages %}
+        <a href="{{ url_for('admin_document', document_id=doc.id, approved_page=approved_page+1) }}">Next →</a>
+      {% else %}
+        <span class="disabled">Next →</span>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Active sessions ── #}
+<div class="panel">
+  <div class="panel-header">
+    <h2>Active Sessions</h2>
+    <span class="badge badge-active">{{ sessions | length }}</span>
+  </div>
+  <div class="panel-body">
+    {% if sessions %}
+    <table id="sessions-table">
+      <thead>
+        <tr><th>Email</th><th>Unlocked (UTC)</th><th>Window</th><th>Status</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        {% for row in sessions %}
+        <tr class="data-row" data-email="{{ row.email }}">
+          <td class="email-cell">{{ row.email }}</td>
+          <td class="ts">{{ row.unlocked_at[:19] if row.unlocked_at }}</td>
+          <td class="ts">{{ row.access_duration_minutes or access_window }} min</td>
+          <td>
+            {% if row.session_token %}
+              <span class="badge badge-active">Active</span>
+            {% else %}
+              <span class="badge badge-revoked">Revoked</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.session_token %}
+            <form class="form-inline" method="post"
+                  action="{{ url_for('revoke_session', document_id=doc.id, request_id=row.id) }}"
+                  onsubmit="return confirm('Revoke session for {{ row.email }}?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-danger" style="padding:.35rem .8rem;font-size:.78rem;">Revoke</button>
+            </form>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty"><div class="empty-icon">📄</div><p>No sessions yet.</p></div>
+    {% endif %}
+
+    {% if sessions_pages > 1 %}
+    <div class="pagination">
+      {% if sessions_page > 1 %}
+        <a href="{{ url_for('admin_document', document_id=doc.id, sessions_page=sessions_page-1) }}">← Prev</a>
+      {% else %}
+        <span class="disabled">← Prev</span>
+      {% endif %}
+      <span class="current">{{ sessions_page }} / {{ sessions_pages }}</span>
+      {% if sessions_page < sessions_pages %}
+        <a href="{{ url_for('admin_document', document_id=doc.id, sessions_page=sessions_page+1) }}">Next →</a>
+      {% else %}
+        <span class="disabled">Next →</span>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Denied (collapsed) ── #}
+{% if denied %}
+<div class="panel">
+  <div class="panel-header collapsible-header" onclick="toggleCollapse('denied-body', this)">
+    <h2>Denied</h2>
+    <span class="badge badge-denied">{{ denied | length }}</span>
+    <span class="toggle-icon" style="margin-left:auto;">▶</span>
+  </div>
+  <div class="panel-body collapsible-body" id="denied-body">
+    <table>
+      <thead><tr><th>Email</th><th>Requested (UTC)</th><th>Reason</th></tr></thead>
+      <tbody>
+        {% for row in denied %}
+        <tr>
+          <td class="email-cell">{{ row.email }}</td>
+          <td class="ts">{{ row.created_at[:19] }}</td>
+          <td class="ts">{{ row.deny_reason or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Expired (collapsed) ── #}
+{% if expired %}
+<div class="panel">
+  <div class="panel-header collapsible-header" onclick="toggleCollapse('expired-body', this)">
+    <h2>Expired PINs</h2>
+    <span class="badge" style="background:var(--gray-100);color:var(--gray-500);">{{ expired | length }}</span>
+    <span class="toggle-icon" style="margin-left:auto;">▶</span>
+  </div>
+  <div class="panel-body collapsible-body" id="expired-body">
+    <table>
+      <thead><tr><th>Email</th><th>Approved (UTC)</th></tr></thead>
+      <tbody>
+        {% for row in expired %}
+        <tr>
+          <td class="email-cell">{{ row.email }}</td>
+          <td class="ts">{{ row.approved_at[:19] if row.approved_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+function toggleAll(master) {
+  document.querySelectorAll('.row-check').forEach(function(cb) {
+    cb.checked = master.checked;
+  });
+}
+
+function toggleDeny(id, btn) {
+  var row = document.getElementById(id);
+  var isOpen = row.style.display === 'table-row';
+  row.style.display = isOpen ? 'none' : 'table-row';
+}
+
+function toggleCollapse(bodyId, header) {
+  var body = document.getElementById(bodyId);
+  var isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  header.classList.toggle('open', !isOpen);
+}
+
+function filterByEmail(q) {
+  q = q.toLowerCase();
+  var rows = document.querySelectorAll('.data-row');
+  var count = 0;
+  rows.forEach(function(row) {
+    var match = !q || row.dataset.email.toLowerCase().includes(q);
+    row.style.display = match ? '' : 'none';
+    if (match) count++;
+  });
+  var el = document.getElementById('filter-count');
+  if (q) {
+    el.textContent = count + ' result' + (count === 1 ? '' : 's');
+  } else {
+    el.textContent = '';
+  }
+}
+</script>
+
+{% endblock %}

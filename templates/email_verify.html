@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Verification</title>
+</head>
+<body style="margin: 0; padding: 0; background: #f3f4f6; font-family: Arial, Helvetica, sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td align="center" style="padding: 40px 16px;">
+        <table role="presentation" width="520" cellspacing="0" cellpadding="0" border="0"
+               style="max-width: 520px; width: 100%; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background: #DC2626; padding: 28px 32px; text-align: center;">
+              <h1 style="margin: 0; font-size: 1.4rem; font-weight: 700; color: #ffffff; letter-spacing: 0.01em;">
+                Email Verification
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px;">
+              <p style="margin: 0 0 20px; font-size: 0.95rem; color: #374151; line-height: 1.6;">
+                Please verify your email address to request access to <strong>{{ doc_name }}</strong>.
+              </p>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding: 8px 0 24px;">
+                    <a href="{{ verify_url }}"
+                       style="display: inline-block; background: #DC2626; color: #ffffff; font-size: 1rem; font-weight: 600; padding: 14px 32px; border-radius: 6px; text-decoration: none;">
+                      Verify Email Address
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px 20px;">
+                    <p style="margin: 0; font-size: 0.85rem; color: #6b7280; line-height: 1.6;">
+                      This link expires in <strong>30 minutes</strong>. Only click if you requested access to this document.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 20px 32px; text-align: center;">
+              <p style="margin: 0; font-size: 0.8rem; color: #9ca3af; line-height: 1.5;">
+                If you didn't request access, ignore this email. Do not reply.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

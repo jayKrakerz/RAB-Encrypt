@@ -1,0 +1,29 @@
+{% extends "base_user.html" %}
+{% block title %}Admin Login — SecureDocs{% endblock %}
+
+{% block content %}
+<div style="text-align:center;margin-bottom:1.6rem;">
+  <div style="width:48px;height:48px;background:#450A0A;border-radius:12px;
+              display:inline-flex;align-items:center;justify-content:center;
+              color:#fff;font-weight:800;font-size:1.3rem;margin-bottom:.8rem;">S</div>
+  <h1 style="font-size:1.25rem;">Admin Login</h1>
+  <p style="font-size:.85rem;color:#6B7280;margin-top:.25rem;">SecureDocs Admin Panel</p>
+</div>
+
+<form method="post" action="{{ url_for('admin_login') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="password">Password</label>
+  <input
+    type="password"
+    id="password"
+    name="password"
+    placeholder="Enter admin password"
+    required
+    autofocus
+  >
+  <button type="submit" class="btn">Sign In →</button>
+</form>
+
+<hr class="divider">
+<p class="helper"><a href="{{ url_for('index') }}">← Back to document portal</a></p>
+{% endblock %}

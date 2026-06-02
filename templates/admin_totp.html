@@ -1,0 +1,42 @@
+{% extends "base_user.html" %}
+{% block title %}Two-Factor Authentication{% endblock %}
+{% block content %}
+
+<div style="max-width: 420px; margin: 3rem auto; text-align: center; padding: 0 1rem;">
+  <div style="font-size: 2rem; margin-bottom: 0.75rem;">&#128272;</div>
+
+  <h1 style="font-size: 1.6rem; font-weight: 700; color: #111827; margin: 0 0 0.5rem;">Two-Factor Authentication</h1>
+  <p style="font-size: 0.95rem; color: #6b7280; margin: 0 0 2rem;">Enter the 6-digit code from your authenticator app.</p>
+
+  <form method="POST" action="{{ url_for('admin_login_totp') }}">
+    {{ csrf_token() }}
+
+    <div style="margin-bottom: 1.25rem;">
+      <input
+        type="text"
+        name="code"
+        maxlength="6"
+        pattern="\d{6}"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        autofocus
+        placeholder="000000"
+        style="width: 100%; box-sizing: border-box; font-size: 1.8rem; letter-spacing: 0.35em; text-align: center; padding: 0.65rem 1rem; border: 2px solid #d1d5db; border-radius: 0.5rem; outline: none; color: #111827;"
+      >
+    </div>
+
+    <button
+      type="submit"
+      style="width: 100%; background: #DC2626; color: #fff; font-size: 1rem; font-weight: 600; padding: 0.75rem 1.5rem; border: none; border-radius: 0.5rem; cursor: pointer;">
+      Verify
+    </button>
+  </form>
+
+  <div style="margin-top: 1.5rem;">
+    <a href="{{ url_for('admin_logout') }}" style="font-size: 0.85rem; color: #6b7280; text-decoration: none;">
+      Use a different account &rarr;
+    </a>
+  </div>
+</div>
+
+{% endblock %}

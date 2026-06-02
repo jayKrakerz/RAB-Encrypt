@@ -1,0 +1,624 @@
+{% extends "base_user.html" %}
+{% block title %}Request Access — {{ doc_name }}{% endblock %}
+
+{% block content %}
+
+{# ── Submitted confirmation screen ───────────────────────────────────── #}
+{% if submitted %}
+<div class="confirm-card">
+  <div class="confirm-icon">✓</div>
+  <h2>Request {% if auto_approved %}Approved{% else %}Submitted{% endif %}</h2>
+  <p class="confirm-email">{{ submitted_email }}</p>
+  {% if auto_approved %}
+  <p class="confirm-body">
+    Your email domain is pre-approved. A one-time PIN has been sent to your inbox —
+    check your email and use it to access the document.
+  </p>
+  <a href="{{ url_for('enter_pin', doc_id=doc.id) }}" class="btn confirm-btn">Enter PIN →</a>
+  {% else %}
+  <p class="confirm-body">
+    Your request is under review. Once approved you'll receive a one-time PIN
+    at the address above — usually within a few hours.
+  </p>
+  <div class="confirm-steps">
+    <div class="cstep done"><span class="cstep-dot">✓</span><span>Submitted</span></div>
+    <div class="cstep-line"></div>
+    <div class="cstep"><span class="cstep-dot">2</span><span>Admin review</span></div>
+    <div class="cstep-line"></div>
+    <div class="cstep"><span class="cstep-dot">3</span><span>PIN emailed</span></div>
+  </div>
+  <a href="{{ url_for('request_status', doc_id=doc.id) }}" class="btn-outline-sm">Check request status →</a>
+  {% endif %}
+</div>
+
+<style>
+.confirm-card { text-align:center; padding:2rem 0 1rem; }
+.confirm-icon {
+  width:64px;height:64px;border-radius:50%;
+  background:#d1fae5;color:#065f46;
+  font-size:1.8rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 1.2rem;
+}
+.confirm-card h2 { font-size:1.4rem;margin-bottom:.4rem; }
+.confirm-email {
+  font-size:.9rem;color:#2563eb;font-weight:600;
+  background:#eff6ff;border-radius:6px;
+  padding:.35rem .8rem;display:inline-block;margin-bottom:1rem;
+}
+.confirm-body { font-size:.9rem;color:#4b5563;line-height:1.6;max-width:340px;margin:0 auto 1.5rem; }
+.confirm-btn  { margin-bottom:1rem;display:inline-block; }
+.confirm-steps { display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:1.5rem; }
+.cstep { display:flex;flex-direction:column;align-items:center;gap:.3rem;font-size:.75rem;color:#9ca3af;min-width:80px; }
+.cstep.done { color:#065f46; }
+.cstep-dot {
+  width:28px;height:28px;border-radius:50%;background:#e5e7eb;color:#9ca3af;
+  font-size:.78rem;font-weight:700;display:flex;align-items:center;justify-content:center;
+}
+.cstep.done .cstep-dot { background:#d1fae5;color:#065f46; }
+.cstep-line { width:32px;height:2px;background:#e5e7eb;margin-bottom:1.2rem;flex-shrink:0; }
+.btn-outline-sm { font-size:.83rem;color:#6b7280;text-decoration:underline; }
+</style>
+
+{% else %}
+
+{# ── Step indicator ── #}
+<div class="step-track">
+  <div class="step-item active">
+    <div class="step-dot">1</div>
+    <span>Request</span>
+  </div>
+  <div class="step-line"></div>
+  <div class="step-item">
+    <div class="step-dot">2</div>
+    <span>Review</span>
+  </div>
+  <div class="step-line"></div>
+  <div class="step-item">
+    <div class="step-dot">3</div>
+    <span>Access</span>
+  </div>
+</div>
+
+{# ── Document card ── #}
+<div class="doc-card">
+  <div class="doc-icon-wrap">🔒</div>
+  <div class="doc-info">
+    <div class="doc-title">{{ doc_name }}</div>
+    <div class="doc-badges">
+      <span class="badge">🔐 Encrypted</span>
+      <span class="badge">⏱ Time-limited</span>
+      <span class="badge">📋 Logged</span>
+    </div>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('request_access', doc_id=doc.id) }}" id="req-form">
+  <label for="email-search">Your email address</label>
+
+  {% if suggested_emails %}
+  <div class="es-wrap" id="es-wrap">
+    <div class="es-input-row">
+      <svg class="es-icon" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+      </svg>
+      <input type="text" id="email-search" placeholder="Search by name or email…"
+             autocomplete="off" spellcheck="false" aria-label="Search email"
+             aria-controls="es-list" aria-autocomplete="list">
+      <span class="es-count" id="es-count"></span>
+      <button type="button" class="es-clear" id="es-clear" hidden aria-label="Clear">✕</button>
+    </div>
+    <ul class="es-list" id="es-list" role="listbox">
+      {% for email in suggested_emails %}
+      <li role="option" class="es-item" data-email="{{ email }}">
+        <span class="es-avatar" data-letter="{{ email[0].upper() }}">{{ email[0].upper() }}</span>
+        <div class="es-info">
+          <span class="es-name">{{ email.split('@')[0].replace('.',' ').replace('_',' ').title() }}</span>
+          <span class="es-addr">{{ email }}</span>
+        </div>
+        <span class="es-check" hidden>
+          <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+          </svg>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="es-footer">
+      <span class="es-hint-text">Can't find yours?
+        <button type="button" class="es-link" id="es-manual-btn">Enter manually</button>
+      </span>
+    </div>
+  </div>
+
+  <div id="es-manual-wrap" hidden>
+    <input type="email" id="email-manual" placeholder="you@example.com"
+           autocomplete="email" style="width:100%;box-sizing:border-box;">
+    <div class="manual-meta" id="manual-meta" hidden>
+      <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+      <span id="manual-email-display"></span>
+    </div>
+    <button type="button" class="es-link" id="es-back-btn"
+            style="font-size:.8rem;margin-top:.5rem;display:block;">← Back to list</button>
+  </div>
+
+  <input type="hidden" id="email" name="email" required>
+
+  {# selected chip — shown after picking #}
+  <div class="selected-chip" id="selected-chip" hidden>
+    <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>
+    <span id="selected-chip-email"></span>
+    <button type="button" id="chip-clear" aria-label="Change email">✕</button>
+  </div>
+
+  {% else %}
+  <input type="email" id="email" name="email" placeholder="you@example.com"
+         required autofocus autocomplete="email">
+  {% endif %}
+
+  {# ── CAPTCHA ── #}
+  {% if captcha_q %}
+  <div class="captcha-card">
+    <div class="captcha-top">
+      <span class="captcha-label">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+        Security check
+      </span>
+      <button type="button" class="captcha-refresh" id="captcha-refresh">↻ New question</button>
+    </div>
+    <div class="captcha-eq">
+      <span class="captcha-question" id="captcha-question">{{ captcha_q }}</span>
+    </div>
+    <input type="text" id="captcha_answer" name="captcha_answer"
+           placeholder="Your answer" inputmode="numeric" maxlength="3"
+           required autocomplete="off" class="captcha-input">
+    <input type="hidden" name="captcha_hash" id="captcha_hash" value="{{ captcha_hash }}">
+  </div>
+  {% endif %}
+
+  {# ── Trust note ── #}
+  <div class="trust-row">
+    <span class="trust-badge">🔐 Encrypted</span>
+    <span class="trust-sep">·</span>
+    <span class="trust-badge">📋 Access logged</span>
+    <span class="trust-sep">·</span>
+    <span class="trust-badge">⏱ Reviewed in hours</span>
+  </div>
+
+  <button type="submit" class="btn req-btn" id="submit-btn" {% if suggested_emails %}disabled{% endif %}>
+    <span id="btn-label">Request Access</span>
+    <span id="btn-arrow">→</span>
+    <span id="btn-spinner" hidden class="btn-spinner"></span>
+  </button>
+</form>
+
+<hr class="divider">
+<p class="helper">Already have a PIN? <a href="{{ url_for('enter_pin', doc_id=doc.id) }}">Enter it here →</a></p>
+<p class="helper" style="margin-top:.4rem;">Not sure where your request stands? <a href="{{ url_for('request_status', doc_id=doc.id) }}">Check status →</a></p>
+
+{% endif %}
+
+<style>
+/* ── Step track ── */
+.step-track {
+  display:flex;align-items:center;margin-bottom:1.8rem;
+}
+.step-item {
+  display:flex;flex-direction:column;align-items:center;
+  gap:.3rem;font-size:.72rem;color:#9ca3af;min-width:60px;
+}
+.step-item.active { color:#dc2626; font-weight:600; }
+.step-dot {
+  width:28px;height:28px;border-radius:50%;
+  background:#f3f4f6;color:#9ca3af;
+  font-size:.75rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  border:2px solid #e5e7eb;
+  transition:all .2s;
+}
+.step-item.active .step-dot {
+  background:#dc2626;color:#fff;border-color:#dc2626;
+  box-shadow:0 0 0 3px rgba(220,38,38,.15);
+}
+.step-line { flex:1;height:2px;background:#e5e7eb;margin-bottom:1.1rem; }
+
+/* ── Document card ── */
+.doc-card {
+  display:flex;align-items:center;gap:1rem;
+  background:linear-gradient(135deg,#1e293b 0%,#334155 100%);
+  border-radius:14px;padding:1rem 1.1rem;margin-bottom:1.5rem;
+  color:#fff;
+}
+.doc-icon-wrap { font-size:1.6rem;flex-shrink:0; }
+.doc-title { font-weight:700;font-size:.95rem;color:#fff;margin-bottom:.4rem;line-height:1.3; }
+.doc-badges { display:flex;flex-wrap:wrap;gap:.35rem; }
+.badge {
+  background:rgba(255,255,255,.12);color:rgba(255,255,255,.8);
+  font-size:.68rem;font-weight:600;
+  padding:.15rem .5rem;border-radius:99px;
+  border:1px solid rgba(255,255,255,.15);
+}
+
+/* ── Email picker ── */
+.es-wrap {
+  border:1.5px solid #e2e8f0;border-radius:14px;
+  overflow:hidden;background:#fff;margin-bottom:.6rem;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+}
+.es-input-row {
+  display:flex;align-items:center;gap:.6rem;
+  padding:.6rem 1rem;border-bottom:1px solid #f1f5f9;
+}
+.es-icon { width:16px;height:16px;flex-shrink:0;color:#94a3b8; }
+.es-input-row input {
+  flex:1;border:none;outline:none;
+  font-size:.92rem;color:#1e293b;background:transparent;padding:0;
+}
+.es-input-row input::placeholder { color:#cbd5e1; }
+.es-count { font-size:.72rem;color:#94a3b8;white-space:nowrap;flex-shrink:0; }
+.es-clear {
+  border:none;background:none;cursor:pointer;
+  color:#94a3b8;font-size:.85rem;padding:2px 5px;
+  border-radius:4px;line-height:1;
+}
+.es-clear:hover { background:#f1f5f9;color:#475569; }
+.es-list {
+  list-style:none;margin:0;padding:4px 0;
+  max-height:230px;overflow-y:auto;
+}
+.es-group-header {
+  padding:.2rem 1rem;
+  font-size:.65rem;font-weight:800;color:#cbd5e1;
+  text-transform:uppercase;letter-spacing:.08em;
+  background:#f8fafc;
+  position:sticky;top:0;z-index:1;
+}
+.es-item {
+  display:flex;align-items:center;gap:.75rem;
+  padding:.55rem 1rem;cursor:pointer;
+  transition:background .1s;
+  border-left:3px solid transparent;
+}
+.es-item:hover  { background:#f8fafc; }
+.es-item.active { background:#f1f5f9; }
+.es-item.selected { background:#eff6ff;border-left-color:#2563eb; }
+.es-item[hidden]  { display:none; }
+
+/* avatar colour by letter */
+.es-avatar {
+  width:32px;height:32px;border-radius:50%;
+  font-size:.8rem;font-weight:700;color:#fff;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.es-info { display:flex;flex-direction:column;gap:.05rem;flex:1;min-width:0; }
+.es-name { font-size:.85rem;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.es-addr { font-size:.75rem;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.es-addr em { font-style:normal;font-weight:700;color:#2563eb; }
+.es-check { color:#2563eb;flex-shrink:0; }
+.es-no-results { padding:1rem;font-size:.85rem;color:#94a3b8;text-align:center; }
+.es-footer {
+  padding:.5rem 1rem;border-top:1px solid #f1f5f9;
+  background:#fafafa;
+}
+.es-hint-text { font-size:.78rem;color:#94a3b8; }
+.es-link {
+  background:none;border:none;cursor:pointer;
+  color:#2563eb;font-size:inherit;padding:0;text-decoration:underline;
+}
+
+/* ── Selected chip ── */
+.selected-chip {
+  display:flex;align-items:center;gap:.5rem;
+  background:#eff6ff;border:1.5px solid #bfdbfe;
+  border-radius:8px;padding:.5rem .85rem;
+  font-size:.85rem;color:#1d4ed8;font-weight:600;
+  margin-bottom:.75rem;
+}
+.selected-chip svg { flex-shrink:0;color:#3b82f6; }
+.selected-chip span { flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.selected-chip button {
+  background:none;border:none;cursor:pointer;
+  color:#93c5fd;font-size:.8rem;padding:0;line-height:1;
+}
+.selected-chip button:hover { color:#1d4ed8; }
+
+/* ── Manual entry ── */
+.manual-meta {
+  display:flex;align-items:center;gap:.4rem;
+  margin-top:.4rem;font-size:.82rem;color:#065f46;
+}
+
+/* ── CAPTCHA card ── */
+.captcha-card {
+  border:1.5px solid #e2e8f0;border-radius:12px;
+  padding:1rem 1.1rem;margin-bottom:.9rem;
+  background:linear-gradient(135deg,#f8fafc,#f1f5f9);
+}
+.captcha-top {
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem;
+}
+.captcha-label {
+  display:flex;align-items:center;gap:.35rem;
+  font-size:.78rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;
+}
+.captcha-refresh {
+  background:none;border:none;cursor:pointer;
+  font-size:.75rem;color:#94a3b8;padding:0;transition:color .15s;
+}
+.captcha-refresh:hover { color:#2563eb; }
+.captcha-eq {
+  background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;
+  padding:.75rem 1rem;margin-bottom:.75rem;text-align:center;
+}
+.captcha-question {
+  font-size:1.4rem;font-weight:800;color:#1e293b;letter-spacing:.06em;
+  font-family:ui-monospace,monospace;
+}
+.captcha-input { width:100%;box-sizing:border-box;text-align:center;font-size:1.1rem;font-weight:700; }
+
+/* ── Trust row ── */
+.trust-row {
+  display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;
+  margin-bottom:1.1rem;
+}
+.trust-badge { font-size:.72rem;color:#94a3b8; }
+.trust-sep   { color:#d1d5db;font-size:.72rem; }
+
+/* ── Submit button ── */
+.req-btn {
+  width:100%;display:flex;align-items:center;justify-content:center;gap:.5rem;
+  font-size:1rem;padding:.85rem;
+}
+.req-btn:disabled { opacity:.5;cursor:not-allowed; }
+#btn-arrow { transition:transform .2s; }
+.req-btn:not(:disabled):hover #btn-arrow { transform:translateX(3px); }
+
+.btn-spinner {
+  display:inline-block;width:14px;height:14px;
+  border:2px solid rgba(255,255,255,.4);border-top-color:#fff;
+  border-radius:50%;animation:spin .7s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── Flash errors ── */
+.alert { animation:slideIn .25s ease; }
+@keyframes slideIn { from { opacity:0;transform:translateY(-6px); } to { opacity:1;transform:none; } }
+</style>
+
+<script>
+(function () {
+  const TOTAL      = {{ suggested_emails | length if suggested_emails else 0 }};
+  const DOC_ID     = {{ doc.id }};
+  const HAS_LIST   = {{ 'true' if suggested_emails else 'false' }};
+  const RECENT_KEY = 'sd_recent_' + DOC_ID;
+
+  // avatar palette — 10 colours cycling by letter index
+  const PALETTE = ['#2563eb','#7c3aed','#db2777','#dc2626','#d97706',
+                   '#059669','#0891b2','#4f46e5','#9333ea','#c2410c'];
+  document.querySelectorAll('.es-avatar').forEach(el => {
+    const c = el.dataset.letter.charCodeAt(0) % PALETTE.length;
+    el.style.background = PALETTE[c];
+  });
+
+  // ── CAPTCHA refresh ────────────────────────────────────────────────
+  const refreshBtn  = document.getElementById('captcha-refresh');
+  const captchaQ    = document.getElementById('captcha-question');
+  const captchaHash = document.getElementById('captcha_hash');
+  const captchaAns  = document.getElementById('captcha_answer');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.textContent = '…';
+      try {
+        const d = await fetch('/doc/' + DOC_ID + '/new-captcha').then(r => r.json());
+        captchaQ.textContent  = d.q;
+        captchaHash.value     = d.hash;
+        if (captchaAns) { captchaAns.value = ''; captchaAns.focus(); }
+      } finally { refreshBtn.textContent = '↻ New question'; }
+    });
+  }
+
+  // ── Submit spinner ─────────────────────────────────────────────────
+  const form       = document.getElementById('req-form');
+  const submitBtn  = document.getElementById('submit-btn');
+  const btnLabel   = document.getElementById('btn-label');
+  const btnArrow   = document.getElementById('btn-arrow');
+  const btnSpinner = document.getElementById('btn-spinner');
+  if (form) {
+    form.addEventListener('submit', () => {
+      if (submitBtn && !submitBtn.disabled) {
+        submitBtn.disabled = true;
+        btnLabel.textContent = 'Submitting…';
+        if (btnArrow) btnArrow.hidden = true;
+        if (btnSpinner) btnSpinner.hidden = false;
+      }
+    });
+  }
+
+  if (!HAS_LIST) return;
+
+  // ── Email picker ───────────────────────────────────────────────────
+  const searchInput = document.getElementById('email-search');
+  const list        = document.getElementById('es-list');
+  const allItems    = Array.from(list.querySelectorAll('.es-item'));
+  const clearBtn    = document.getElementById('es-clear');
+  const countEl     = document.getElementById('es-count');
+  const hidden      = document.getElementById('email');
+  const manualBtn   = document.getElementById('es-manual-btn');
+  const backBtn     = document.getElementById('es-back-btn');
+  const manualWrap  = document.getElementById('es-manual-wrap');
+  const manualInput = document.getElementById('email-manual');
+  const manualMeta  = document.getElementById('manual-meta');
+  const manualDisp  = document.getElementById('manual-email-display');
+  const esWrap      = document.getElementById('es-wrap');
+  const chip        = document.getElementById('selected-chip');
+  const chipEmail   = document.getElementById('selected-chip-email');
+  const chipClear   = document.getElementById('chip-clear');
+  let noResults = null, activeIdx = -1;
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function highlight(text, q) {
+    if (!q) return escHtml(text);
+    const idx = text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx === -1) return escHtml(text);
+    return escHtml(text.slice(0, idx))
+      + '<em>' + escHtml(text.slice(idx, idx + q.length)) + '</em>'
+      + escHtml(text.slice(idx + q.length));
+  }
+
+  function updateCount(n) {
+    if (!countEl) return;
+    countEl.textContent = n < TOTAL ? n + ' of ' + TOTAL : TOTAL + ' contacts';
+  }
+
+  function buildGrouped() {
+    list.innerHTML = '';
+    let cur = '';
+    allItems.forEach(item => {
+      const letter = item.dataset.email[0].toUpperCase();
+      if (letter !== cur) {
+        cur = letter;
+        const hdr = document.createElement('li');
+        hdr.className = 'es-group-header';
+        hdr.textContent = letter;
+        hdr.setAttribute('data-group-header', letter);
+        list.appendChild(hdr);
+      }
+      list.appendChild(item);
+    });
+    updateCount(TOTAL);
+  }
+  buildGrouped();
+
+  function filter() {
+    const q = searchInput.value.trim();
+    clearBtn.hidden = !q;
+    activeIdx = -1;
+    let visible = 0;
+    list.querySelectorAll('.es-group-header').forEach(h => h.hidden = true);
+
+    allItems.forEach(item => {
+      const email = item.dataset.email;
+      const name  = item.querySelector('.es-name').textContent;
+      const match = !q
+        || email.toLowerCase().includes(q.toLowerCase())
+        || name.toLowerCase().includes(q.toLowerCase());
+      item.hidden = !match;
+      item.querySelector('.es-addr').innerHTML = highlight(email, q);
+      item.querySelector('.es-name').innerHTML = highlight(name, q);
+      if (match) {
+        visible++;
+        if (!q) {
+          const hdr = list.querySelector('[data-group-header="' + email[0].toUpperCase() + '"]');
+          if (hdr) hdr.hidden = false;
+        }
+      }
+    });
+
+    if (noResults) { noResults.remove(); noResults = null; }
+    if (!visible) {
+      noResults = document.createElement('li');
+      noResults.className = 'es-no-results';
+      noResults.textContent = 'No matches — try "Enter manually" below.';
+      list.appendChild(noResults);
+    }
+    updateCount(visible);
+  }
+
+  function showChip(email) {
+    if (chip && chipEmail) {
+      chipEmail.textContent = email;
+      chip.hidden = false;
+    }
+    esWrap.hidden = true;
+  }
+  function hideChip() {
+    if (chip) chip.hidden = true;
+    esWrap.hidden = false;
+    searchInput.focus();
+  }
+
+  function select(email) {
+    hidden.value = email;
+    submitBtn.disabled = false;
+    allItems.forEach(i => {
+      i.classList.remove('selected','active');
+      i.querySelector('.es-check').hidden = true;
+    });
+    const match = allItems.find(i => i.dataset.email === email);
+    if (match) {
+      match.classList.add('selected');
+      match.querySelector('.es-check').hidden = false;
+    }
+    searchInput.value = email;
+    clearBtn.hidden = false;
+    activeIdx = -1;
+    try { localStorage.setItem(RECENT_KEY, email); } catch(e){}
+    showChip(email);
+  }
+
+  if (chipClear) {
+    chipClear.addEventListener('click', () => {
+      hidden.value = ''; submitBtn.disabled = true;
+      allItems.forEach(i => { i.classList.remove('selected','active'); i.querySelector('.es-check').hidden = true; });
+      searchInput.value = ''; clearBtn.hidden = true;
+      buildGrouped();
+      hideChip();
+    });
+  }
+
+  function setActive(idx) {
+    const vis = allItems.filter(i => !i.hidden);
+    vis.forEach(i => i.classList.remove('active'));
+    if (idx >= 0 && idx < vis.length) {
+      activeIdx = idx;
+      vis[idx].classList.add('active');
+      vis[idx].scrollIntoView({ block:'nearest' });
+    } else { activeIdx = -1; }
+  }
+
+  allItems.forEach(item => item.addEventListener('click', () => select(item.dataset.email)));
+  searchInput.addEventListener('input', filter);
+  searchInput.addEventListener('keydown', e => {
+    const vis = allItems.filter(i => !i.hidden);
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(activeIdx+1, vis.length-1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(activeIdx-1, 0)); }
+    else if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); select(vis[activeIdx].dataset.email); }
+  });
+  clearBtn.addEventListener('click', () => {
+    searchInput.value = ''; hidden.value = ''; submitBtn.disabled = true;
+    allItems.forEach(i => { i.hidden=false; i.classList.remove('selected','active'); i.querySelector('.es-check').hidden=true; });
+    if (noResults) { noResults.remove(); noResults=null; }
+    clearBtn.hidden = true;
+    buildGrouped(); searchInput.focus();
+  });
+
+  // Pre-select recent
+  try {
+    const recent = localStorage.getItem(RECENT_KEY);
+    if (recent && allItems.find(i => i.dataset.email === recent)) select(recent);
+  } catch(e){}
+
+  // Manual entry
+  manualBtn.addEventListener('click', () => {
+    esWrap.hidden=true; manualWrap.hidden=false;
+    if (chip) chip.hidden=true;
+    manualInput.focus(); hidden.value=''; submitBtn.disabled=true;
+  });
+  backBtn.addEventListener('click', () => {
+    manualWrap.hidden=true; esWrap.hidden=false;
+    manualInput.value=''; hidden.value='';
+    submitBtn.disabled = !allItems.some(i => i.classList.contains('selected'));
+    searchInput.focus();
+  });
+  manualInput.addEventListener('input', () => {
+    const val = manualInput.value.trim();
+    const valid = val.includes('@') && val.includes('.');
+    hidden.value = valid ? val : '';
+    submitBtn.disabled = !valid;
+    if (manualMeta && manualDisp) { manualMeta.hidden=!valid; manualDisp.textContent=valid?val:''; }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,28 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist the database and encrypted PDF across restarts
+      - ./data:/app/data
+    environment:
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      FERNET_KEY:       ${FERNET_KEY}
+      ADMIN_PASSWORD:   ${ADMIN_PASSWORD}
+      ADMIN_EMAIL:      ${ADMIN_EMAIL}
+      SMTP_HOST:        ${SMTP_HOST}
+      SMTP_PORT:        ${SMTP_PORT:-587}
+      SMTP_USER:        ${SMTP_USER}
+      SMTP_PASS:        ${SMTP_PASS}
+      SMTP_USE_TLS:     ${SMTP_USE_TLS:-1}
+      DOCUMENT_NAME:    ${DOCUMENT_NAME:-Protected Document}
+      WEBHOOK_URL:      ${WEBHOOK_URL:-}
+      DATABASE:         /app/data/requests.db
+      ENCRYPTED_PDF:    /app/data/document.pdf.enc
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

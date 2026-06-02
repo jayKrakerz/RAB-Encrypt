@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ doc_name }} — Secure Viewer</title>
+  <style>
+    :root {
+      --primary: #DC2626;
+      --warning: #D97706;
+      --gray-100: #F3F4F6;
+      --gray-200: #E5E7EB;
+      --gray-700: #374151;
+      --gray-900: #111827;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      background: #1C0A0A;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* ── Top bar ── */
+    .viewer-bar {
+      background: #fff;
+      border-bottom: 1px solid var(--gray-200);
+      padding: .6rem 1.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      gap: 1rem;
+      z-index: 10;
+    }
+    .bar-left { display: flex; align-items: center; gap: .8rem; }
+    .bar-logo {
+      width: 28px; height: 28px;
+      background: var(--primary);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 800; font-size: .8rem;
+    }
+    .bar-doc  { font-weight: 700; font-size: .92rem; color: var(--gray-900); }
+    .bar-user { font-size: .78rem; color: #6B7280; }
+    .bar-right { display: flex; align-items: center; gap: 1rem; }
+
+    /* ── Timer ── */
+    .timer-wrap {
+      display: flex; align-items: center; gap: .5rem;
+      background: var(--gray-100); border: 1px solid var(--gray-200);
+      border-radius: 8px; padding: .35rem .8rem;
+      font-size: .82rem; color: var(--gray-700);
+      transition: background .3s, color .3s, border-color .3s;
+    }
+    .timer-wrap.warning { background: #FEF3C7; border-color: #FDE68A; color: #92400E; }
+    .timer-wrap.danger  { background: #FEE2E2; border-color: #FECACA; color: #991B1B; }
+    #timer { font-weight: 700; font-size: .95rem; min-width: 3.2rem; }
+
+    /* ── Warning banner ── */
+    .security-notice {
+      background: #450A0A; color: #FECACA;
+      font-size: .78rem; text-align: center;
+      padding: .4rem 1rem; flex-shrink: 0;
+    }
+
+    /* ── PDF canvas area ── */
+    .pdf-scroll {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem 0;
+      gap: 1rem;
+    }
+    .pdf-page-wrap {
+      position: relative;
+      box-shadow: 0 4px 24px rgba(0,0,0,.5);
+    }
+    .pdf-page-wrap canvas {
+      display: block;
+      max-width: 100%;
+    }
+    /* invisible overlay blocks right-click & selection on each canvas */
+    .pdf-page-wrap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      cursor: default;
+    }
+
+    /* ── Loading state ── */
+    #pdf-loading {
+      color: #FECACA; font-size: .9rem; padding: 3rem;
+      display: flex; flex-direction: column; align-items: center; gap: 1rem;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(254,202,202,.3);
+      border-top-color: #FECACA;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Time remaining pill ── */
+    .time-pill {
+      display: inline-flex; align-items: center; gap: .35rem;
+      background: var(--gray-100); border: 1px solid var(--gray-200);
+      border-radius: 99px; padding: .25rem .75rem;
+      font-size: .78rem; font-weight: 700; color: var(--gray-700);
+      transition: background .3s, color .3s, border-color .3s;
+    }
+    .time-pill.pulse-red {
+      background: #FEE2E2; border-color: #FECACA; color: #991B1B;
+      animation: pill-pulse 1s ease-in-out infinite;
+    }
+    @keyframes pill-pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+    /* ── Expired overlay ── */
+    .expired-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.75); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    .expired-overlay.show { display: flex; }
+    .expired-card {
+      background: #fff; border-radius: 14px;
+      padding: 2.5rem 2.2rem; text-align: center;
+      max-width: 360px; width: 90%;
+    }
+    .expired-card .icon { font-size: 3rem; margin-bottom: .8rem; }
+    .expired-card h2 { font-size: 1.2rem; color: var(--gray-900); margin-bottom: .5rem; }
+    .expired-card p  { font-size: .88rem; color: #6B7280; margin-bottom: 1.4rem; line-height: 1.5; }
+    .expired-card a  {
+      display: inline-block; background: var(--primary); color: #fff;
+      padding: .65rem 1.5rem; border-radius: 8px;
+      text-decoration: none; font-weight: 600; font-size: .9rem;
+    }
+
+    /* block print entirely */
+    @media print { body { display: none !important; } }
+  </style>
+</head>
+<body>
+
+  <div class="viewer-bar">
+    <div class="bar-left">
+      <div class="bar-logo">S</div>
+      <div>
+        <div class="bar-doc">{{ doc_name }}</div>
+        <div class="bar-user">{{ user_email }}</div>
+      </div>
+    </div>
+    <div class="bar-right">
+      <span class="time-pill" id="time-pill">⏱ <span id="pill-timer">--:--</span> remaining</span>
+      <div class="timer-wrap" id="timer-wrap">
+        <span>⏱</span>
+        <span id="timer">--:--</span>
+        <span style="font-size:.75rem;">remaining</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="security-notice">
+    This document is confidential. Your access expires in <strong id="timer-inline">--:--</strong>.
+    Sharing or recording this session is prohibited.
+  </div>
+
+  <div class="pdf-scroll" id="pdf-scroll">
+    <div id="pdf-loading">
+      <div class="spinner"></div>
+      <span>Loading secure document…</span>
+    </div>
+  </div>
+
+  <div class="expired-overlay" id="expired-overlay">
+    <div class="expired-card">
+      <div class="icon">⏱</div>
+      <h2>Session Expired</h2>
+      <p>Your access window has ended. Request a new PIN to view the document again.</p>
+      <a href="{{ url_for('index') }}">Request New Access</a>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+          integrity="sha512-q+4liFwdPC/bNdhUpZx6aXDx/h77yEQtn4I1slHydcbZK34nLaR3cAeYSJshoxIOq3mjEf7xmRkMHhAEGMPIQ=="
+          crossorigin="anonymous"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    const SESSION_TOKEN = {{ session_token | tojson }};
+    const VIEW_PDF_URL  = {{ url_for('view_pdf', doc_id=doc.id) | tojson }};
+    const expiresAt     = new Date({{ access_expires | tojson }} + 'Z').getTime();
+    const sessionStart  = Date.now();
+
+    // ── Block all copy / download / print shortcuts ──────────────────────
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('dragstart',   e => e.preventDefault());
+    document.addEventListener('selectstart', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+      const mod = e.ctrlKey || e.metaKey;
+      // block: Ctrl/Cmd + C, A, S, P, U, Shift+I, Shift+J, F12
+      if (mod && ['c','a','s','p','u'].includes(e.key.toLowerCase())) {
+        e.preventDefault(); return;
+      }
+      if (mod && e.shiftKey && ['i','j','c'].includes(e.key.toLowerCase())) {
+        e.preventDefault(); return;
+      }
+      if (e.key === 'F12' || e.key === 'PrintScreen') {
+        e.preventDefault(); return;
+      }
+    });
+    window.addEventListener('beforeprint', e => { e.preventDefault(); });
+
+    // ── Timer ─────────────────────────────────────────────────────────────
+    function fmt(ms) {
+      if (ms <= 0) return '00:00';
+      const s = Math.floor(ms / 1000);
+      return String(Math.floor(s / 60)).padStart(2,'0') + ':' + String(s % 60).padStart(2,'0');
+    }
+
+    function tick() {
+      const rem = expiresAt - Date.now();
+      const display = fmt(rem);
+      document.getElementById('timer').textContent       = display;
+      document.getElementById('timer-inline').textContent = display;
+      const pt = document.getElementById('pill-timer');
+      if (pt) pt.textContent = display;
+
+      const wrap = document.getElementById('timer-wrap');
+      const pill = document.getElementById('time-pill');
+      wrap.classList.remove('warning','danger');
+      if (rem <= 0) {
+        document.getElementById('expired-overlay').classList.add('show');
+        clearInterval(interval);
+        return;
+      }
+      if (rem < 2*60*1000) {
+        wrap.classList.add('danger');
+        pill && pill.classList.add('pulse-red');
+      } else if (rem < 10*60*1000) {
+        wrap.classList.add('warning');
+        pill && pill.classList.remove('pulse-red');
+      }
+    }
+    const interval = setInterval(tick, 1000);
+    tick();
+
+    // ── Heartbeat ─────────────────────────────────────────────────────────
+    setInterval(() => {
+      fetch('{{ url_for("api_heartbeat") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_token: SESSION_TOKEN })
+      });
+    }, 30000);
+
+    window.addEventListener('beforeunload', () => {
+      const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+      navigator.sendBeacon('{{ url_for("api_view_end") }}',
+        new Blob([JSON.stringify({ session_token: SESSION_TOKEN, elapsed_seconds: elapsed })],
+          { type: 'application/json' }));
+    });
+
+    // ── PDF.js rendering ──────────────────────────────────────────────────
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    async function loadPDF() {
+      const resp = await fetch(VIEW_PDF_URL, {
+        headers: { 'X-Viewer-Token': SESSION_TOKEN },
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+
+      if (!resp.ok) {
+        document.getElementById('pdf-loading').innerHTML =
+          '<span style="color:#FCA5A5;">Failed to load document. Please try again.</span>';
+        return;
+      }
+
+      const data   = await resp.arrayBuffer();
+      const pdf    = await pdfjsLib.getDocument({ data }).promise;
+      const scroll = document.getElementById('pdf-scroll');
+      scroll.innerHTML = '';
+
+      const scale = Math.min(1.8, (window.innerWidth * 0.9) / 612);
+
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page     = await pdf.getPage(p);
+        const viewport = page.getViewport({ scale });
+
+        const wrap   = document.createElement('div');
+        wrap.className = 'pdf-page-wrap';
+
+        const canvas = document.createElement('canvas');
+        canvas.width  = viewport.width;
+        canvas.height = viewport.height;
+        wrap.appendChild(canvas);
+        scroll.appendChild(wrap);
+
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      }
+    }
+
+    loadPDF().catch(err => {
+      console.error(err);
+      document.getElementById('pdf-loading').innerHTML =
+        '<span style="color:#FCA5A5;">Error rendering document.</span>';
+    });
+  })();
+  </script>
+
+</body>
+</html>
