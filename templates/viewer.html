@@ -174,12 +174,57 @@
     Sharing or recording this session is prohibited.
   </div>
 
+  {% if is_pdf %}
   <div class="pdf-scroll" id="pdf-scroll">
     <div id="pdf-loading">
       <div class="spinner"></div>
       <span>Loading secure document…</span>
     </div>
   </div>
+  {% else %}
+  <div class="pdf-scroll" id="pdf-scroll" style="align-items:center;justify-content:center;">
+    <div style="text-align:center;color:#fff;padding:3rem 2rem;">
+      <div style="font-size:4rem;margin-bottom:1rem;">📄</div>
+      <h2 style="margin-bottom:.5rem;font-size:1.2rem;">{{ doc_name }}</h2>
+      <p style="color:#FECACA;font-size:.88rem;margin-bottom:2rem;">
+        This document will download securely to your device.<br>
+        Your access expires in <strong id="timer-inline2">--:--</strong>.
+      </p>
+      <button id="download-btn" onclick="secureDownload()"
+         style="display:inline-flex;align-items:center;gap:.5rem;
+                background:#dc2626;color:#fff;padding:.8rem 2rem;
+                border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:.95rem;">
+        ⬇ Download {{ file_ext.upper().lstrip('.') }} File
+      </button>
+      <script>
+      async function secureDownload() {
+        const btn = document.getElementById('download-btn');
+        btn.textContent = 'Downloading…';
+        btn.disabled = true;
+        try {
+          const r = await fetch({{ view_pdf_url | tojson }}, {
+            headers: { 'X-Viewer-Token': {{ session_token | tojson }} },
+            credentials: 'same-origin', cache: 'no-store'
+          });
+          const blob = await r.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = {{ (doc_name + file_ext) | tojson }};
+          a.click();
+          URL.revokeObjectURL(url);
+        } finally {
+          btn.textContent = '⬇ Download {{ file_ext.upper().lstrip(".") }} File';
+          btn.disabled = false;
+        }
+      }
+      </script>
+      <p style="color:#94a3b8;font-size:.75rem;margin-top:1.2rem;">
+        File is decrypted on download. Do not share.
+      </p>
+    </div>
+  </div>
+  {% endif %}
 
   <div class="expired-overlay" id="expired-overlay">
     <div class="expired-card">
@@ -191,7 +236,6 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
-          integrity="sha512-q+4liFwdPC/bNdhUpZx6aXDx/h77yEQtn4I1slHydcbZK34nLaR3cAeYSJshoxIOq3mjEf7xmRkMHhAEGMPIQ=="
           crossorigin="anonymous"></script>
   <script>
   (function () {
@@ -201,6 +245,13 @@
     const VIEW_PDF_URL  = {{ url_for('view_pdf', doc_id=doc.id) | tojson }};
     const expiresAt     = new Date({{ access_expires | tojson }} + 'Z').getTime();
     const sessionStart  = Date.now();
+
+    // Start fetching the PDF immediately — in parallel with PDF.js loading
+    const pdfFetchPromise = fetch(VIEW_PDF_URL, {
+      headers: { 'X-Viewer-Token': SESSION_TOKEN },
+      credentials: 'same-origin',
+      cache: 'no-store',
+    }).then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status));
 
     // ── Block all copy / download / print shortcuts ──────────────────────
     document.addEventListener('contextmenu', e => e.preventDefault());
@@ -276,19 +327,14 @@
       'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
     async function loadPDF() {
-      const resp = await fetch(VIEW_PDF_URL, {
-        headers: { 'X-Viewer-Token': SESSION_TOKEN },
-        credentials: 'same-origin',
-        cache: 'no-store',
-      });
-
-      if (!resp.ok) {
+      let data;
+      try {
+        data = await pdfFetchPromise;
+      } catch(e) {
         document.getElementById('pdf-loading').innerHTML =
           '<span style="color:#FCA5A5;">Failed to load document. Please try again.</span>';
         return;
       }
-
-      const data   = await resp.arrayBuffer();
       const pdf    = await pdfjsLib.getDocument({ data }).promise;
       const scroll = document.getElementById('pdf-scroll');
       scroll.innerHTML = '';

@@ -123,6 +123,25 @@ SUGGESTED_EMAILS: list[str] = sorted(
 UPLOADS_DIR = os.path.join(_DATA_DIR, "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
+ALLOWED_EXTENSIONS = {
+    ".pdf":  "application/pdf",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls":  "application/vnd.ms-excel",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".doc":  "application/msword",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".ppt":  "application/vnd.ms-powerpoint",
+}
+
+def _get_ext(filename: str) -> str:
+    return os.path.splitext(filename.lower())[1]
+
+def _is_allowed(filename: str) -> bool:
+    return _get_ext(filename) in ALLOWED_EXTENSIONS
+
+def _mimetype(filename: str) -> str:
+    return ALLOWED_EXTENSIONS.get(_get_ext(filename), "application/octet-stream")
+
 ACCESS_DURATION_OPTIONS = [
     (15,   "15 minutes"),
     (30,   "30 minutes"),
@@ -967,6 +986,7 @@ def viewer(doc_id: int):
         session.clear()
         return redirect(url_for("locked_page", reason="revoked"))
 
+    file_ext = _get_ext(doc["enc_filename"].replace(".enc", ""))
     return render_template(
         "viewer.html",
         doc=doc,
@@ -976,6 +996,8 @@ def viewer(doc_id: int):
         user_email=session.get("user_email", ""),
         session_token=token,
         view_pdf_url=url_for("view_pdf", doc_id=doc_id),
+        is_pdf=(file_ext == ".pdf"),
+        file_ext=file_ext,
     )
 
 
@@ -1035,26 +1057,32 @@ def view_pdf(doc_id: int):
         app.logger.error("Decryption failed: %s", exc)
         return "Could not decrypt document.", 500
 
-    try:
-        plaintext = _watermark(plaintext, session.get("user_email", "unknown"), _client_ip())
-    except Exception as exc:
-        app.logger.error("Watermarking failed, serving unwatermarked: %s", exc)
+    file_ext = _get_ext(doc["enc_filename"].replace(".enc", ""))
+    file_mimetype = _mimetype(doc["enc_filename"].replace(".enc", ""))
+    is_pdf = file_ext == ".pdf"
+
+    if is_pdf:
+        try:
+            plaintext = _watermark(plaintext, session.get("user_email", "unknown"), _client_ip())
+        except Exception as exc:
+            app.logger.error("Watermarking failed, serving unwatermarked: %s", exc)
 
     log_event("document_viewed", document_id=doc_id, email=session.get("user_email"),
               request_id=req_id)
-    # Update last_viewed_at
     get_db().execute(
         "UPDATE requests SET last_viewed_at=? WHERE id=?",
         (utcnow().isoformat(), req_id),
     )
     get_db().commit()
 
+    safe_name = _slug(doc["name"]) + file_ext
     minutes_left = int((expires - utcnow()).total_seconds() // 60)
+    disposition = "inline" if is_pdf else f"attachment; filename={safe_name}"
     return Response(
         plaintext,
-        mimetype="application/pdf",
+        mimetype=file_mimetype,
         headers={
-            "Content-Disposition": "inline; filename=document.pdf",
+            "Content-Disposition": disposition,
             "Cache-Control": "no-store, no-cache, must-revalidate, private",
             "Pragma": "no-cache",
             "X-Minutes-Remaining": str(minutes_left),
@@ -1305,7 +1333,8 @@ def admin_bulk_download():
                 fernet = Fernet(doc["fernet_key"].encode())
                 with open(enc_path, "rb") as fh:
                     plaintext = fernet.decrypt(fh.read())
-                safe_name = doc["name"].replace("/", "_").replace("\\", "_") + ".pdf"
+                orig_ext = _get_ext(doc["enc_filename"].replace(".enc", ""))
+                safe_name = doc["name"].replace("/", "_").replace("\\", "_") + orig_ext
                 zf.writestr(safe_name, plaintext)
                 log_event("document_downloaded", document_id=doc_id,
                           extra={"admin": True})
@@ -1346,17 +1375,16 @@ def admin_document_new():
             return render_template("admin_document_new.html", doc_name=DOCUMENT_NAME)
 
         uploaded = request.files.get("pdf")
-        if not uploaded or not uploaded.filename.lower().endswith(".pdf"):
-            flash("Please upload a valid .pdf file.", "error")
+        if not uploaded or not _is_allowed(uploaded.filename):
+            flash(f"Please upload a supported file ({', '.join(ALLOWED_EXTENSIONS)}).", "error")
             return render_template("admin_document_new.html", doc_name=DOCUMENT_NAME)
 
         plaintext = uploaded.read()
         if not plaintext:
             flash("Uploaded file is empty.", "error")
             return render_template("admin_document_new.html", doc_name=DOCUMENT_NAME)
-        if not plaintext.startswith(b"%PDF"):
-            flash("File does not appear to be a valid PDF.", "error")
-            return render_template("admin_document_new.html", doc_name=DOCUMENT_NAME)
+
+        orig_ext = _get_ext(uploaded.filename)
 
         expires_at = None
         if expires_at_raw:
@@ -1382,7 +1410,7 @@ def admin_document_new():
         ciphertext = fernet.encrypt(plaintext)
 
         slug = _slug(name)
-        enc_filename = f"{slug}_{secrets.token_hex(6)}.pdf.enc"
+        enc_filename = f"{slug}_{secrets.token_hex(6)}{orig_ext}.enc"
         enc_path = os.path.join(UPLOADS_DIR, enc_filename)
         with open(enc_path, "wb") as fh:
             fh.write(ciphertext)
@@ -1442,20 +1470,21 @@ def admin_document_bulk():
         for uploaded in files:
             if not uploaded or not uploaded.filename:
                 continue
-            if not uploaded.filename.lower().endswith(".pdf"):
-                skipped.append(f"{uploaded.filename} (not a PDF)")
+            if not _is_allowed(uploaded.filename):
+                skipped.append(f"{uploaded.filename} (unsupported type)")
                 continue
 
             plaintext = uploaded.read()
-            if not plaintext or not plaintext.startswith(b"%PDF"):
-                skipped.append(f"{uploaded.filename} (invalid PDF)")
+            if not plaintext:
+                skipped.append(f"{uploaded.filename} (empty file)")
                 continue
 
+            orig_ext = _get_ext(uploaded.filename)
             doc_name = os.path.splitext(uploaded.filename)[0].replace("_", " ").replace("-", " ").strip()
             fernet_key = Fernet.generate_key()
             ciphertext = Fernet(fernet_key).encrypt(plaintext)
             slug = _slug(doc_name)
-            enc_filename = f"{slug}_{secrets.token_hex(6)}.pdf.enc"
+            enc_filename = f"{slug}_{secrets.token_hex(6)}{orig_ext}.enc"
             enc_path = os.path.join(UPLOADS_DIR, enc_filename)
             with open(enc_path, "wb") as fh:
                 fh.write(ciphertext)
