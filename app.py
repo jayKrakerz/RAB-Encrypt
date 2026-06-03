@@ -91,6 +91,7 @@ SMTP_USER = os.environ["SMTP_USER"]
 SMTP_PASS = os.environ["SMTP_PASS"]
 SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "1") != "0"
 SMTP_USE_SSL = os.environ.get("SMTP_USE_SSL", "0") == "1"
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
 ADMIN_TOTP_SECRET = os.environ.get("ADMIN_TOTP_SECRET", "")
@@ -321,6 +322,37 @@ def _geo_lookup(ip: str) -> tuple[str, str]:
 
 def send_email(to: str, subject: str, text: str, html: str | None = None,
                cc: str | None = None) -> None:
+    if BREVO_API_KEY:
+        _send_email_brevo(to, subject, text, html, cc)
+    else:
+        _send_email_smtp(to, subject, text, html, cc)
+
+
+def _send_email_brevo(to: str, subject: str, text: str, html: str | None = None,
+                      cc: str | None = None) -> None:
+    payload: dict = {
+        "sender": {"name": "SecureDocs", "email": SMTP_USER},
+        "to": [{"email": to}],
+        "subject": subject,
+        "textContent": text,
+        "htmlContent": html or text,
+    }
+    if cc:
+        payload["cc"] = [{"email": cc}]
+    resp = urllib.request.urlopen(
+        urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=json.dumps(payload).encode(),
+            headers={"api-key": BREVO_API_KEY, "Content-Type": "application/json"},
+            method="POST",
+        )
+    )
+    if resp.status not in (200, 201):
+        raise RuntimeError(f"Brevo API error {resp.status}: {resp.read()}")
+
+
+def _send_email_smtp(to: str, subject: str, text: str, html: str | None = None,
+                     cc: str | None = None) -> None:
     if html:
         msg = MIMEMultipart("alternative")
         msg.attach(MIMEText(text, "plain"))
