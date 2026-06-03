@@ -26,6 +26,7 @@ import base64
 import csv
 import hashlib
 import io
+import zipfile
 import json
 import os
 import re
@@ -1276,6 +1277,47 @@ def admin_dashboard():
         },
         recent_events=recent_events,
         doc_name=DOCUMENT_NAME,
+    )
+
+
+@app.route("/admin/documents/bulk-download", methods=["POST"])
+@totp_required
+def admin_bulk_download():
+    ids = request.form.getlist("doc_ids")
+    if not ids:
+        flash("No documents selected.", "error")
+        return redirect(url_for("admin_documents"))
+
+    db = get_db()
+    buf = BytesIO()
+
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for id_str in ids:
+            try:
+                doc_id = int(id_str)
+            except ValueError:
+                continue
+            doc = db.execute("SELECT * FROM documents WHERE id=?", (doc_id,)).fetchone()
+            if not doc:
+                continue
+            enc_path = os.path.join(UPLOADS_DIR, doc["enc_filename"])
+            try:
+                fernet = Fernet(doc["fernet_key"].encode())
+                with open(enc_path, "rb") as fh:
+                    plaintext = fernet.decrypt(fh.read())
+                safe_name = doc["name"].replace("/", "_").replace("\\", "_") + ".pdf"
+                zf.writestr(safe_name, plaintext)
+                log_event("document_downloaded", document_id=doc_id,
+                          extra={"admin": True})
+            except Exception as exc:
+                app.logger.error("Bulk download failed for doc %s: %s", doc_id, exc)
+                continue
+
+    buf.seek(0)
+    return Response(
+        buf.read(),
+        mimetype="application/zip",
+        headers={"Content-Disposition": "attachment; filename=securedocs_export.zip"},
     )
 
 

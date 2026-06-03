@@ -4,78 +4,121 @@
 
 {% block content %}
 
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.4rem;">
-  <p class="text-muted">{{ documents | length }} document{{ 's' if documents | length != 1 else '' }}</p>
-  <a href="{{ url_for('admin_document_new') }}" class="btn btn-primary">+ New Document</a>
-</div>
+<form method="post" action="{{ url_for('admin_bulk_download') }}" id="bulk-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-<div class="panel">
-  <div class="panel-body">
-    {% if documents %}
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Name</th>
-          <th>Status</th>
-          <th>Expires</th>
-          <th>Viewers</th>
-          <th>Approved Domains</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for doc in documents %}
-        <tr>
-          <td class="ts">{{ doc.id }}</td>
-          <td style="font-weight:600;color:var(--gray-900);">
-            {{ doc.name }}
-            {% if doc.description %}
-              <div class="text-muted" style="font-weight:400;margin-top:.15rem;">{{ doc.description[:80] }}{% if doc.description | length > 80 %}…{% endif %}</div>
-            {% endif %}
-          </td>
-          <td>
-            {% if doc.status == 'active' %}
-              <span class="badge badge-active">Active</span>
-            {% else %}
-              <span class="badge badge-archived">Archived</span>
-            {% endif %}
-          </td>
-          <td class="ts">{{ doc.expires_at[:16] if doc.expires_at else '—' }}</td>
-          <td class="ts">
-            {% if doc.max_viewers %}
-              {{ doc.viewer_count }} / {{ doc.max_viewers }}
-            {% else %}
-              {{ doc.viewer_count }} / ∞
-            {% endif %}
-          </td>
-          <td class="ts" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-            {{ doc.approved_domains or '—' }}
-          </td>
-          <td>
-            <div class="btn-actions">
-              <a href="{{ url_for('admin_document', document_id=doc.id) }}" class="btn btn-outline" style="font-size:.78rem;padding:.3rem .7rem;">Manage</a>
-              {% if doc.status == 'active' %}
-              <form class="form-inline" method="post"
-                    action="{{ url_for('archive_document', document_id=doc.id) }}"
-                    onsubmit="return confirm('Archive {{ doc.name }}? All active sessions will continue until they expire.')">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-ghost" style="font-size:.78rem;padding:.3rem .7rem;">Archive</button>
-              </form>
-              {% endif %}
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="empty">
-      <div class="empty-icon">📁</div>
-      <p>No documents yet. <a href="{{ url_for('admin_document_new') }}" style="color:var(--primary);">Create your first document.</a></p>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.4rem;gap:1rem;flex-wrap:wrap;">
+    <p class="text-muted">{{ documents | length }} document{{ 's' if documents | length != 1 else '' }}</p>
+    <div style="display:flex;gap:.6rem;align-items:center;">
+      <button type="submit" id="dl-btn" class="btn btn-outline" style="font-size:.82rem;display:none;" title="Download selected as ZIP">
+        ⬇ Download ZIP
+      </button>
+      <a href="{{ url_for('admin_document_new') }}" class="btn btn-primary">+ New Document</a>
     </div>
-    {% endif %}
   </div>
-</div>
+
+  <div class="panel">
+    <div class="panel-body">
+      {% if documents %}
+      <table>
+        <thead>
+          <tr>
+            <th style="width:32px;">
+              <input type="checkbox" id="select-all" title="Select all"
+                     style="width:15px;height:15px;accent-color:var(--primary);cursor:pointer;">
+            </th>
+            <th>#</th>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Expires</th>
+            <th>Viewers</th>
+            <th>Approved Domains</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for doc in documents %}
+          <tr>
+            <td>
+              <input type="checkbox" name="doc_ids" value="{{ doc.id }}" class="doc-cb"
+                     style="width:15px;height:15px;accent-color:var(--primary);cursor:pointer;">
+            </td>
+            <td class="ts">{{ doc.id }}</td>
+            <td style="font-weight:600;color:var(--gray-900);">
+              {{ doc.name }}
+              {% if doc.description %}
+                <div class="text-muted" style="font-weight:400;margin-top:.15rem;">{{ doc.description[:80] }}{% if doc.description | length > 80 %}…{% endif %}</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if doc.status == 'active' %}
+                <span class="badge badge-active">Active</span>
+              {% else %}
+                <span class="badge badge-archived">Archived</span>
+              {% endif %}
+            </td>
+            <td class="ts">{{ doc.expires_at[:16] if doc.expires_at else '—' }}</td>
+            <td class="ts">
+              {% if doc.max_viewers %}
+                {{ doc.viewer_count }} / {{ doc.max_viewers }}
+              {% else %}
+                {{ doc.viewer_count }} / ∞
+              {% endif %}
+            </td>
+            <td class="ts" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              {{ doc.approved_domains or '—' }}
+            </td>
+            <td>
+              <div class="btn-actions">
+                <a href="{{ url_for('admin_document', document_id=doc.id) }}" class="btn btn-outline" style="font-size:.78rem;padding:.3rem .7rem;">Manage</a>
+                {% if doc.status == 'active' %}
+                <form class="form-inline" method="post"
+                      action="{{ url_for('archive_document', document_id=doc.id) }}"
+                      onsubmit="return confirm('Archive {{ doc.name }}? All active sessions will continue until they expire.')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-ghost" style="font-size:.78rem;padding:.3rem .7rem;">Archive</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">
+        <div class="empty-icon">📁</div>
+        <p>No documents yet. <a href="{{ url_for('admin_document_new') }}" style="color:var(--primary);">Create your first document.</a></p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</form>
+
+<script>
+(function () {
+  const selectAll = document.getElementById('select-all');
+  const cbs       = document.querySelectorAll('.doc-cb');
+  const dlBtn     = document.getElementById('dl-btn');
+
+  function updateBtn() {
+    const checked = document.querySelectorAll('.doc-cb:checked').length;
+    dlBtn.style.display = checked > 0 ? 'inline-flex' : 'none';
+    dlBtn.textContent = checked > 0 ? '⬇ Download ZIP (' + checked + ')' : '⬇ Download ZIP';
+  }
+
+  selectAll.addEventListener('change', () => {
+    cbs.forEach(cb => cb.checked = selectAll.checked);
+    updateBtn();
+  });
+
+  cbs.forEach(cb => cb.addEventListener('change', () => {
+    selectAll.checked = [...cbs].every(c => c.checked);
+    selectAll.indeterminate = [...cbs].some(c => c.checked) && ![...cbs].every(c => c.checked);
+    updateBtn();
+  }));
+})();
+</script>
 
 {% endblock %}
